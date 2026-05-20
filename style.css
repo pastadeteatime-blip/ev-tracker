@@ -657,6 +657,87 @@ progress::-webkit-progress-value{
   transform: translateX(-50%) translateY(0);
 }
 
+.app-dialog-overlay{
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.app-dialog{
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 110;
+  width: min(320px, calc(100vw - 40px));
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  padding: 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 24px 56px rgba(2, 6, 23, 0.32);
+  text-align: center;
+}
+
+.app-dialog h2{
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+
+.app-dialog p{
+  margin: 0 0 16px;
+  color: #475569;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.app-dialog > button{
+  width: 100%;
+}
+
+.app-dialog-form{
+  display: grid;
+  gap: 12px;
+  text-align: left;
+}
+
+.app-dialog-form label{
+  display: grid;
+  gap: 6px;
+  color: #334155;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.app-dialog-form input{
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  font-size: 1rem;
+  background: var(--field);
+  color: var(--text);
+  border-color: var(--field-border);
+  box-shadow: none;
+}
+
+.app-dialog-form input:invalid{
+  background: var(--field);
+  color: var(--text);
+  border-color: var(--field-border);
+  box-shadow: none;
+}
+
+.app-dialog-actions{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.app-dialog-actions button{
+  width: 100%;
+}
+
 
 .log-actions{
   display: grid;
@@ -1271,6 +1352,10 @@ progress.goal-rainbow::-moz-progress-bar{
 
 .store-row.is-store-selected .store-picker-open{
   cursor: default;
+  pointer-events: none;
+  opacity: 1;
+  color: var(--text);
+  -webkit-text-fill-color: var(--text);
 }
 
 .store-row.is-store-selected .store-picker-open__hint{
@@ -1375,6 +1460,10 @@ progress.goal-rainbow::-moz-progress-bar{
   background: transparent;
   color: var(--text);
   font-size: 0.85rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
 }
 
 .owned-summary span,
@@ -1383,7 +1472,7 @@ progress.goal-rainbow::-moz-progress-bar{
 }
 
 .owned-summary strong{
-  margin-top: 3px;
+  margin-top: 0;
 }
 
 .current-hand-balls{
@@ -1393,16 +1482,9 @@ progress.goal-rainbow::-moz-progress-bar{
 }
 
 .owned-edit{
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.owned-edit input{
-  min-width: 0;
-  padding: 7px 8px;
-  font-size: 14px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
 }
 
 #ownedBalanceSaveBtn{

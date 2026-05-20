@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>&#26399;&#24453;&#20516;&#12488;&#12521;&#12483;&#12459;&#12540;</title>
 
-  <link rel="stylesheet" href="style.css?v=28" />
+  <link rel="stylesheet" href="style.css?v=30" />
   <link rel="manifest" href="./manifest.webmanifest">
 
   <!-- iOS / Web App Icons -->
@@ -31,7 +31,7 @@
       loading="eager"
     />
   </h1>
-  <p class="app-version">Version 1.1</p>
+  <p class="app-version">Version 1.1.13</p>
 
   <main class="container">
 
@@ -88,11 +88,11 @@
             </p>
           </div>
           <div class="owned-summary">
-            <span id="ownedKeyLabel">&#24215;&#12398;&#12524;&#12540;&#12488;&#26410;&#35373;&#23450;</span>
-            <strong id="ownedBalance">&#36015;&#29577;&#65306;0&#29577;</strong>
-            <span id="currentHandBalls" class="current-hand-balls">&#25345;&#12385;&#29577;&#65306;----</span>
+            <div class="owned-values">
+              <strong id="ownedBalance">&#36015;&#29577;&#65306;0&#29577;</strong>
+              <span id="currentHandBalls" class="current-hand-balls">&#25345;&#12385;&#29577;&#65306;----</span>
+            </div>
             <div class="owned-edit">
-              <input type="number" id="ownedBalanceInput" inputmode="numeric" min="0" step="1" placeholder="&#36015;&#29577;&#12434;&#20837;&#21147;" />
               <button type="button" id="ownedBalanceSaveBtn" class="chip neutral">&#36015;&#29577;&#12434;&#26356;&#26032;</button>
             </div>
           </div>
@@ -370,10 +370,33 @@
   </section>
 
   <div id="appToast" class="app-toast is-hidden" role="status" aria-live="polite"></div>
+  <div id="appDialogOverlay" class="app-dialog-overlay is-hidden" aria-hidden="true"></div>
+  <section
+    id="appDialog"
+    class="app-dialog is-hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="appDialogTitle"
+    aria-describedby="appDialogMessage"
+  >
+    <h2 id="appDialogTitle"></h2>
+    <p id="appDialogMessage"></p>
+    <div id="appDialogForm" class="app-dialog-form is-hidden">
+      <label>
+        <span id="appDialogInputLabel"></span>
+        <input type="number" id="appDialogInput" inputmode="numeric" min="0" step="1" />
+      </label>
+      <div class="app-dialog-actions">
+        <button type="button" id="appDialogCancel" class="chip undo">&#25147;&#12427;</button>
+        <button type="button" id="appDialogSave" class="chip state">&#26356;&#26032;</button>
+      </div>
+    </div>
+    <button type="button" id="appDialogOk" class="chip state">OK</button>
+  </section>
 
   <script src="./affiliate-links.js?v=28"></script>
-  <script src="./machines.js?v=28"></script>
-  <script src="./app.js?v=28"></script>
+  <script src="./machines.js?v=30"></script>
+  <script src="./app.js?v=30"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {

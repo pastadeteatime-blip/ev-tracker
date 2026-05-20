@@ -1,10 +1,12 @@
 // machines.js
 // 機種データ専用ファイル
+// 検索に引っかけたい通称・ひらがな表記は tags に手動追加する
 
 window.MACHINES = [
   {
     id: "emadoka3",
     name: "e魔法少女まどか☆マギカ3 時間遡行～始まりの願い～",
+    tags: ["まどマギ", "まどまぎ", "まどか", "マギカ", "時間遡行"],
     perSpinPayBalls: 12.57,
     costPer1kBalls: 250,
     border: { 25: 19.89, 28: 22.28, 30: 23.87, 33: 26.25 },
@@ -20,6 +22,7 @@ window.MACHINES = [
   {
     id: "ekabaneri2",
     name: "e甲鉄城のカバネリ2 咲かせや燐然",
+    tags: ["カバネリ", "かばねり", "甲鉄城", "こうてつじょう"],
     perSpinPayBalls: 14.61,
     costPer1kBalls: 250,
     border: { 25: 17.11, 28: 19.16, 30: 22.58, 33: 27.37 },
@@ -33,6 +36,7 @@ window.MACHINES = [
   {
   id: "rezero_s2_249",
   name: "P Re:ゼロから始める異世界生活 season2 249ver.",
+  tags: ["リゼロ", "りぜろ", "Reゼロ", "reゼロ", "ゼロから始める異世界生活"],
   perSpinPayBalls: 15.07,
   costPer1kBalls: 250,
   border: { 25: 16.59, 28: 18.58, 30: 19.91, 33: 21.9 },
@@ -45,6 +49,7 @@ window.MACHINES = [
  {
   id: "rezero_s2_129",
   name: "P Re:ゼロから始める異世界生活 season2 129ver.",
+  tags: ["リゼロ", "りぜろ", "Reゼロ", "reゼロ", "ゼロから始める異世界生活"],
   perSpinPayBalls: 15.6,
   costPer1kBalls: 250,
   border: { 25: 16.02, 28: 17.94, 30: 19.22, 33: 21.15 },
@@ -58,6 +63,7 @@ window.MACHINES = [
   {
     id: "madoka3",
     name: "P魔法少女まどか☆マギカ3",
+    tags: ["まどマギ", "まどまぎ", "まどか", "マギカ"],
     perSpinPayBalls: 14.85,
     costPer1kBalls: 250,
     border: { 25: 17.1, 28: 18.0, 30: 18.5, 33: 19.2 },
@@ -77,6 +83,7 @@ window.MACHINES = [
   {
     id: "megamiCafe",
     name: "e女神のカフェテラスFLX",
+    tags: ["女神", "めがみ", "カフェ", "カフェテラス"],
     perSpinPayBalls: 9.37,
     costPer1kBalls: 250,
     border: { 25: 27.4, 28: 28.9, 30: 29.8, 33: 31.2 },
@@ -91,6 +98,7 @@ window.MACHINES = [
   {
     id: "shamanking",
     name: "eシャーマンキング でっけぇなあver.",
+    tags: ["シャーマンキング", "しゃーまんきんぐ", "マンキン", "まんきん"],
     perSpinPayBalls: 8.08,
     costPer1kBalls: 250,
     border: { 25: 31.7, 28: 33.5, 30: 34.6, 33: 36.2 },
@@ -104,6 +112,7 @@ window.MACHINES = [
   {
     id: "tokyoGhoul",
     name: "e東京喰種W",
+    tags: ["東京喰種", "とうきょうぐーる", "グール", "ぐーる"],
     perSpinPayBalls: 14.99,
     costPer1kBalls: 250,
     border: { 25: 16.68, 28: 18.68, 30: 20.01, 33: 22.01 },
@@ -118,6 +127,7 @@ window.MACHINES = [
   {
     id: "eva17_hajimari",
     name: "e新世紀エヴァンゲリオン ～はじまりの記憶～",
+    tags: ["エヴァ", "えば", "エバ", "エヴァンゲリオン"],
     perSpinPayBalls: 14.84,
     costPer1kBalls: 250,
     border: { 25: 16.85, 28: 18.87, 30: 20.22, 33: 22.24 },
@@ -132,6 +142,7 @@ window.MACHINES = [
   {
     id: "lycoris_recoil",
     name: "eリコリス・リコイル",
+    tags: ["リコリコ", "りこりこ", "リコリス", "リコイル"],
     perSpinPayBalls: 15.08,
     costPer1kBalls: 250,
     border: { 25: 16.58, 28: 18.57, 30: 19.89, 33: 21.88 },
@@ -145,6 +156,7 @@ window.MACHINES = [
   {
     id: "eighty_six",
     name: "e86-エイティシックス-",
+    tags: ["86", "エイティシックス", "えいてぃしっくす"],
     perSpinPayBalls: 12.33,
     costPer1kBalls: 250,
     border: { 25: 20.28, 28: 22.72, 30: 24.34, 33: 26.77 },
@@ -160,6 +172,7 @@ window.MACHINES = [
   {
     id: "ef_kinnikuman",
     name: "eFキン肉マン",
+    tags: ["キン肉マン", "きんにくまん", "キン肉", "きんにく"],
     perSpinPayBalls: 15.11,
     costPer1kBalls: 250,
     border: { 25: 16.55, 28: 18.53, 30: 19.85, 33: 21.84 },
@@ -174,6 +187,7 @@ window.MACHINES = [
   {
     id: "ering_saikyo",
     name: "eリング 最恐領域",
+    tags: ["リング", "りんぐ", "最恐", "さいきょう"],
     perSpinPayBalls: 14.53,
     costPer1kBalls: 250,
     border: { 25: 17.21, 28: 19.27, 30: 20.65, 33: 22.71 },
@@ -188,6 +202,7 @@ window.MACHINES = [
   {
     id: "ragnador",
     name: "eラグナドール 妖しき皇帝と終焉の夜叉姫",
+    tags: ["ラグナドール", "らぐなどーる", "ラグナ", "らぐな"],
     perSpinPayBalls: 15.69,
     costPer1kBalls: 250,
     border: { 25: 15.94, 28: 17.85, 30: 19.12, 33: 21.03 },
@@ -201,6 +216,7 @@ window.MACHINES = [
   {
     id: "tensura2",
     name: "e転生したらスライムだった件2",
+    tags: ["転スラ", "てんすら", "転生したらスライムだった件", "スライム"],
     perSpinPayBalls: 14.93,
     costPer1kBalls: 250,
     border: { 25: 16.74, 28: 18.75, 30: 20.09, 33: 22.1 },
@@ -215,6 +231,7 @@ window.MACHINES = [
   {
     id: "nyanko_88",
     name: "Pにゃんこ大戦争 多様性のネコ 神さまにおまかせ88ver.",
+    tags: ["にゃんこ", "にゃんこ大戦争", "ネコ", "ねこ"],
     perSpinPayBalls: 13.23,
     costPer1kBalls: 250,
     border: { 25: 18.9, 28: 19.3, 30: 19.6, 33: 19.9 },
@@ -230,6 +247,7 @@ window.MACHINES = [
   {
     id: "sengoku_otome7_ll",
     name: "P戦国乙女7 終焉の関ヶ原 LLサイズ 299ver.",
+    tags: ["戦国乙女", "せんごくおとめ", "乙女", "おとめ"],
     perSpinPayBalls: 8.2,
     costPer1kBalls: 250,
     border: { 25: 30.5, 28: 31.6, 30: 32.2, 33: 33.0 },
@@ -243,6 +261,7 @@ window.MACHINES = [
   {
     id: "shield_hero_199",
     name: "e盾の勇者の成り上がり アルティメット199ver.",
+    tags: ["盾の勇者", "たてのゆうしゃ", "盾勇", "たてゆう"],
     perSpinPayBalls: 14.29,
     costPer1kBalls: 250,
     border: { 25: 17.49, 28: 19.59, 30: 20.99, 33: 23.09 },
@@ -257,6 +276,7 @@ window.MACHINES = [
   {
     id: "biohazard6",
     name: "e バイオハザード6",
+    tags: ["バイオ", "ばいお", "バイオハザード", "bio"],
     perSpinPayBalls: 14.71,
     costPer1kBalls: 250,
     border: { 25: 17.0, 28: 19.04, 30: 20.4, 33: 22.44 },
@@ -270,6 +290,7 @@ window.MACHINES = [
   {
     id: "ryza_atelier",
     name: "e ライザのアトリエ ～常闇の女王と秘密の隠れ家～",
+    tags: ["ライザ", "らいざ", "アトリエ", "あとりえ"],
     perSpinPayBalls: 13.02,
     costPer1kBalls: 250,
     border: { 25: 19.2, 28: 21.51, 30: 23.04, 33: 25.35 },
@@ -284,6 +305,7 @@ window.MACHINES = [
   {
     id: "ef_bluelock",
     name: "eFブルーロック",
+    tags: ["ブルーロック", "ぶるーろっく", "ブルロ", "ぶるろ"],
     perSpinPayBalls: 13.89,
     costPer1kBalls: 250,
     border: { 25: 17.4, 28: 19.49, 30: 20.88, 33: 22.97 },
@@ -301,6 +323,7 @@ window.MACHINES = [
   {
     id: "tokyo_revengers",
     name: "e東京リベンジャーズ",
+    tags: ["東京リベンジャーズ", "とうきょうりべんじゃーず", "東リベ", "とうりべ"],
     perSpinPayBalls: 15.15,
     costPer1kBalls: 250,
     border: { 25: 17.3, 28: 19.38, 30: 20.76, 33: 22.84 },
@@ -314,6 +337,7 @@ window.MACHINES = [
   {
     id: "super_umimonogatari_okinawa6",
     name: "Pスーパー海物語IN沖縄6",
+    tags: ["海", "うみ", "海物語", "沖海", "おきうみ", "沖縄6"],
     perSpinPayBalls: 15.15,
     costPer1kBalls: 250,
     border: { 25: 17.8, 28: 19.94, 30: 21.36, 33: 23.5 },
@@ -328,6 +352,7 @@ window.MACHINES = [
   {
     id: "railgun_phase_next",
     name: "eとある科学の超電磁砲 PHASE NEXT",
+    tags: ["レールガン", "れーるがん", "超電磁砲", "とある"],
     perSpinPayBalls: 13.37,
     costPer1kBalls: 250,
     border: { 25: 18.3, 28: 20.5, 30: 21.96, 33: 24.16 },
@@ -341,6 +366,7 @@ window.MACHINES = [
   {
     id: "bancho_kan_no_itadaki",
     name: "eぱちんこ押忍！番長 漢の頂",
+    tags: ["番長", "ばんちょう", "押忍番長", "おすばん"],
     perSpinPayBalls: 14.71,
     costPer1kBalls: 250,
     border: { 25: 17.9, 28: 20.05, 30: 21.48, 33: 23.63 },
@@ -354,6 +380,7 @@ window.MACHINES = [
   {
     id: "kakegurui_7500",
     name: "eカケグルイ 7500ver.",
+    tags: ["カケグルイ", "かけぐるい", "賭ケグルイ"],
     perSpinPayBalls: 15.07,
     costPer1kBalls: 250,
     border: { 25: 16.5, 28: 18.48, 30: 19.8, 33: 21.78 },
@@ -368,6 +395,7 @@ window.MACHINES = [
   {
     id: "ginpara_viva_festa",
     name: "eまわるん超ワープ ギンギラパラダイス VIVA FESTA",
+    tags: ["ギンパラ", "ぎんぱら", "ギンギラパラダイス", "海"],
     perSpinPayBalls: 10.96,
     costPer1kBalls: 250,
     border: { 25: 22.3, 28: 24.98, 30: 26.76, 33: 29.44 },
@@ -382,6 +410,7 @@ window.MACHINES = [
   {
     id: "hikikomari",
     name: "eひきこまり吸血姫の悶々",
+    tags: ["ひきこまり", "吸血姫", "こまり"],
     perSpinPayBalls: 15.24,
     costPer1kBalls: 250,
     border: { 25: 18.9, 28: 21.17, 30: 22.68, 33: 24.95 },
@@ -396,6 +425,7 @@ window.MACHINES = [
   {
     id: "hokuto11_boukyousei",
     name: "e 北斗の拳11 暴凶星",
+    tags: ["北斗", "ほくと", "北斗の拳", "暴凶星", "ぼうきょうせい"],
     perSpinPayBalls: 14.29,
     costPer1kBalls: 250,
     border: { 25: 18.2, 28: 20.38, 30: 21.84, 33: 24.02 },
@@ -410,6 +440,7 @@ window.MACHINES = [
   {
     id: "eva17_mirai",
     name: "新世紀エヴァンゲリオン～未来への咆哮～",
+    tags: ["エヴァ", "えば", "エバ15", "エヴァンゲリオン", "未来への咆哮", "エヴァ15"],
     perSpinPayBalls: 15.06,
     costPer1kBalls: 250,
     border: { 25: 16.5, 28: 18.48, 30: 19.8, 33: 21.78 },
@@ -423,6 +454,7 @@ window.MACHINES = [
   {
     id: "garo12_ougon_kishi",
     name: "e牙狼12黄金騎士極限",
+    tags: ["牙狼", "がろ", "ガロ", "黄金騎士"],
     perSpinPayBalls: 14.37,
     costPer1kBalls: 250,
     border: { 25: 16.9, 28: 18.93, 30: 20.28, 33: 22.31 },
@@ -437,6 +469,7 @@ window.MACHINES = [
   {
     id: "sao_senkou",
     name: "eソードアート・オンライン 閃光の軌跡",
+    tags: ["SAO", "sao", "ソードアートオンライン", "そーどあーと", "閃光"],
     perSpinPayBalls: 15.15,
     costPer1kBalls: 250,
     border: { 25: 17.4, 28: 19.49, 30: 20.88, 33: 22.97 },
@@ -450,6 +483,7 @@ window.MACHINES = [
   {
     id: "ef_mononogatari",
     name: "eFもののがたり",
+    tags: ["もののがたり"],
     perSpinPayBalls: 14.53,
     costPer1kBalls: 250,
     border: { 25: 16.6, 28: 18.59, 30: 19.92, 33: 21.91 },
@@ -463,6 +497,7 @@ window.MACHINES = [
   {
     id: "oo_umi5",
     name: "P大海物語5",
+    tags: ["海", "うみ", "大海5", "大海物語", "海物語"],
     perSpinPayBalls: 15.15,
     costPer1kBalls: 250,
     border: { 25: 16.5, 28: 18.48, 30: 19.8, 33: 21.78 },
@@ -476,6 +511,7 @@ window.MACHINES = [
   {
     id: "yoshimune_kiwaminose_3000",
     name: "e吉宗 極乗3000ver.",
+    tags: ["吉宗", "よしむね"],
     perSpinPayBalls: 14.71,
     costPer1kBalls: 250,
     border: { 25: 17.4, 28: 19.49, 30: 20.88, 33: 22.97 },
@@ -489,6 +525,7 @@ window.MACHINES = [
   {
     id: "enen2_benimaru",
     name: "eF炎炎ノ消防隊2 紅丸ver.",
+    tags: ["炎炎", "えんえん", "炎炎ノ消防隊", "紅丸", "べにまる"],
     perSpinPayBalls: 14.97,
     costPer1kBalls: 250,
     border: { 25: 16.5, 28: 18.48, 30: 19.8, 33: 21.78 },
@@ -503,6 +540,7 @@ window.MACHINES = [
   {
     id: "karakuri2_maou",
     name: "eFからくりサーカス2 魔王ver.",
+    tags: ["からくり", "からくりサーカス", "魔王", "からさー"],
     perSpinPayBalls: 13.97,
     costPer1kBalls: 250,
     border: { 25: 16.9, 28: 18.93, 30: 20.28, 33: 22.31 },
