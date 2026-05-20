@@ -88,6 +88,7 @@ let rushEndAdjustIndex = -1;
 let toastTimer = null;
 let appDialogCloseHandler = null;
 let machinePickerScrollTop = 0;
+let totalViewReturnY = null;
 
 function $(id) {
   return document.getElementById(id);
@@ -2395,6 +2396,13 @@ function getAllMachineTotals() {
 }
 
 function setTotalViewMode(mode, shouldScroll = false) {
+  const nextMode = mode === "all" ? "all" : "selected";
+  const previousMode = totalViewMode;
+
+  if (nextMode === "all" && previousMode !== "all") {
+    totalViewReturnY = window.scrollY;
+  }
+
   totalViewMode = mode === "all" ? "all" : "selected";
   localStorage.setItem(LS_TOTAL_VIEW_MODE, totalViewMode);
 
@@ -2407,6 +2415,11 @@ function setTotalViewMode(mode, shouldScroll = false) {
 
   if (shouldScroll) {
     $("totalCard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  } else if (nextMode === "selected" && previousMode === "all" && Number.isFinite(totalViewReturnY)) {
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: totalViewReturnY, behavior: "auto" });
+      totalViewReturnY = null;
+    });
   }
 }
 
@@ -3567,7 +3580,7 @@ function init() {
     resetMachineTotals(btn.dataset.machineId);
   });
   $("totalTabAll")?.addEventListener("click", () => setTotalViewMode("all", true));
-  $("totalTabSelected")?.addEventListener("click", () => setTotalViewMode("selected", true));
+  $("totalTabSelected")?.addEventListener("click", () => setTotalViewMode("selected", false));
 
   $("investYen")?.addEventListener("change", () => {
     const val = Number($("investYen").value);
