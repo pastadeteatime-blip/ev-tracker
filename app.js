@@ -19,6 +19,7 @@ const LS_STORE_EXCHANGES = "evTracker_storeExchanges_v1";
 const LS_TOTAL_VIEW_MODE = "evTracker_totalViewMode_v1";
 const LS_DAILY_LOG_DATE = "evTracker_dailyLogDate_v1";
 const LS_DAILY_HAND_BALLS = "evTracker_dailyHandBalls_v1";
+const LS_ACTIVE_SESSION = "evTracker_activeSession_v1";
 const BACKUP_APP_ID = "ev-tracker";
 const BACKUP_SCHEMA_VERSION = 1;
 
@@ -74,6 +75,7 @@ let spinLog = [];
 let pendingIndex = -1;
 let nextStartCounter = 0;
 let payoutConfirmIndex = -1;
+let fixedPayoutEditIndex = -1;
 let endBallsYame = null;
 let endBallsPending = false;
 let pendingHitHandData = null;
@@ -104,6 +106,7 @@ function getSessionDraftInputs() {
   return {
     counterNow: getInputValue("counterNow"),
     payoutNow: getInputValue("payoutNow"),
+    fixedPayoutNow: getInputValue("fixedPayoutNow"),
     hitHandNow: getInputValue("hitHandNow"),
     endBallsNow: getInputValue("endBallsNow"),
     midBallsNow: getInputValue("midBallsNow"),
@@ -116,6 +119,12 @@ function getSessionDraftInputs() {
 function restoreInputValue(id, value) {
   const el = $(id);
   if (el && typeof value === "string") el.value = value;
+}
+
+function renderAppVersion() {
+  const version = window.APP_VERSION || "";
+  const versionEl = document.querySelector(".app-version");
+  if (versionEl && version) versionEl.textContent = `Version ${version}`;
 }
 
 function fmtInt(n) {
@@ -993,6 +1002,7 @@ function clearAllDailySessions() {
     localStorage.removeItem(getSessionKey(machine.id));
   }
   localStorage.removeItem(LS_DAILY_HAND_BALLS);
+  localStorage.removeItem(LS_ACTIVE_SESSION);
 }
 
 function hasActiveDailySession() {
@@ -1030,6 +1040,7 @@ function clearCurrentDailyState() {
   spinLog = [];
   pendingIndex = -1;
   payoutConfirmIndex = -1;
+  fixedPayoutEditIndex = -1;
   endBallsPending = false;
   endBallsYame = null;
   nextStartCounter = 0;
@@ -1044,8 +1055,10 @@ function clearCurrentDailyState() {
 
   $("counterNow") && ($("counterNow").value = "");
   $("payoutPanel")?.classList.add("is-hidden");
+  $("fixedPayoutPanel")?.classList.add("is-hidden");
   $("endBallsPanel")?.classList.add("is-hidden");
   $("payoutNow") && ($("payoutNow").value = "");
+  $("fixedPayoutNow") && ($("fixedPayoutNow").value = "");
   $("endBallsNow") && ($("endBallsNow").value = "");
 
   const resultEl = $("result");
@@ -1089,10 +1102,13 @@ function saveSession() {
     const key = getSessionKey(selectedMachine.id);
     const sessionStore = getStoreNames().includes(selectedStore) ? selectedStore : "";
     const data = {
+      machineId: selectedMachine.id,
+      savedAt: Date.now(),
       spinLog,
       pendingIndex,
       nextStartCounter,
       payoutConfirmIndex,
+      fixedPayoutEditIndex,
       endBallsYame,
       endBallsPending,
       pendingHitHandData,
@@ -1110,7 +1126,9 @@ function saveSession() {
       lastMidCheckBalls,
       draftInputs: getSessionDraftInputs(),
     };
+    localStorage.setItem(LS_SELECTED_MACHINE, selectedMachine.id);
     localStorage.setItem(key, JSON.stringify(data));
+    localStorage.setItem(LS_ACTIVE_SESSION, JSON.stringify(data));
   } catch (e) {
     console.warn("saveSession failed:", e);
   }
@@ -1135,15 +1153,30 @@ function queueSaveSession() {
 function loadSession() {
   try {
     const key = getSessionKey(selectedMachine.id);
-    const raw = localStorage.getItem(key);
-    if (!raw) return false;
+    let raw = localStorage.getItem(key);
+    let data = raw ? JSON.parse(raw) : null;
 
-    const data = JSON.parse(raw);
+    if (!data) {
+      const activeRaw = localStorage.getItem(LS_ACTIVE_SESSION);
+      const active = activeRaw ? JSON.parse(activeRaw) : null;
+      const activeMachine = MACHINES.find((m) => m.id === active?.machineId);
+      if (!activeMachine) return false;
+
+      selectedMachine = activeMachine;
+      localStorage.setItem(LS_SELECTED_MACHINE, selectedMachine.id);
+      const sel = $("machineSelect");
+      if (sel) sel.value = selectedMachine.id;
+      setSelectedMachineDisplay();
+      renderFavoriteButton();
+      loadTotalsForSelectedMachine();
+      data = active;
+    }
 
     spinLog = Array.isArray(data.spinLog) ? data.spinLog : [];
     pendingIndex = Number.isFinite(data.pendingIndex) ? data.pendingIndex : -1;
     nextStartCounter = Number.isFinite(data.nextStartCounter) ? data.nextStartCounter : 0;
     payoutConfirmIndex = Number.isFinite(data.payoutConfirmIndex) ? data.payoutConfirmIndex : -1;
+    fixedPayoutEditIndex = Number.isFinite(data.fixedPayoutEditIndex) ? data.fixedPayoutEditIndex : -1;
 
     endBallsYame = Number.isFinite(data.endBallsYame) ? data.endBallsYame : null;
     endBallsPending = !!data.endBallsPending;
@@ -1188,6 +1221,7 @@ function loadSession() {
     const draft = data.draftInputs && typeof data.draftInputs === "object" ? data.draftInputs : {};
     restoreInputValue("counterNow", draft.counterNow);
     restoreInputValue("payoutNow", draft.payoutNow);
+    restoreInputValue("fixedPayoutNow", draft.fixedPayoutNow);
     restoreInputValue("hitHandNow", draft.hitHandNow);
     restoreInputValue("endBallsNow", draft.endBallsNow);
     restoreInputValue("midBallsNow", draft.midBallsNow);
@@ -1205,6 +1239,11 @@ function loadSession() {
 function clearSession() {
   try {
     localStorage.removeItem(getSessionKey(selectedMachine.id));
+    const activeRaw = localStorage.getItem(LS_ACTIVE_SESSION);
+    const active = activeRaw ? JSON.parse(activeRaw) : null;
+    if (active?.machineId === selectedMachine.id) {
+      localStorage.removeItem(LS_ACTIVE_SESSION);
+    }
   } catch {}
 }
 
@@ -1442,6 +1481,7 @@ function resetSpinLog(skipSave = false) {
   pendingIndex = -1;
   nextStartCounter = 0;
   payoutConfirmIndex = -1;
+  fixedPayoutEditIndex = -1;
   endBallsYame = null;
   endBallsPending = false;
   pendingHitHandData = null;
@@ -1453,6 +1493,8 @@ function resetSpinLog(skipSave = false) {
 
   $("payoutPanel")?.classList.add("is-hidden");
   if ($("payoutNow")) $("payoutNow").value = "";
+  $("fixedPayoutPanel")?.classList.add("is-hidden");
+  if ($("fixedPayoutNow")) $("fixedPayoutNow").value = "";
   $("hitHandPanel")?.classList.add("is-hidden");
   if ($("hitHandNow")) $("hitHandNow").value = "";
 
@@ -1636,6 +1678,66 @@ function removeOutcomePayoutFromHand(row) {
   if (row) delete row.handPayoutAdded;
   lastMidCheckBalls = getDailyHandBalls();
   renderOwnedBalance();
+}
+
+function isFixedPayoutRow(row) {
+  return row?.label === "単発" || row?.label === "チャージ";
+}
+
+function startFixedPayoutAdjust(index) {
+  const row = spinLog[index];
+  if (!isFixedPayoutRow(row)) return;
+
+  fixedPayoutEditIndex = index;
+  $("payoutPanel")?.classList.add("is-hidden");
+
+  const input = $("fixedPayoutNow");
+  if (input) {
+    input.value = String(Math.max(0, Math.floor(Number(row.payoutDisp ?? row.payout) || 0)));
+  }
+
+  $("fixedPayoutPanel")?.classList.remove("is-hidden");
+  input?.focus();
+  input?.select();
+  saveSession();
+}
+
+function confirmFixedPayoutAdjust() {
+  const row = spinLog[fixedPayoutEditIndex];
+  if (!isFixedPayoutRow(row)) return;
+
+  const value = Number($("fixedPayoutNow")?.value);
+  if (!Number.isFinite(value) || value < 0) {
+    alert("表示出玉を0以上で入力してください");
+    return;
+  }
+
+  const disp = Math.floor(value);
+  const previousDisp = Math.floor(Number(row.payoutDisp) || 0);
+  const previousNet = Math.floor(Number(row.payout) || 0);
+  const payoutGap = Math.max(0, previousDisp - previousNet);
+  const net = Math.max(0, disp - payoutGap);
+  const previousAdded = Math.max(0, Math.floor(Number(row.handPayoutAdded) || 0));
+  const delta = net - previousAdded;
+
+  clearFinalResult();
+  if (delta !== 0) {
+    setDailyHandBalls(getDailyHandBalls() + delta);
+  }
+
+  row.payout = net;
+  row.payoutDisp = disp;
+  row.handPayoutAdded = net;
+  lastMidCheckBalls = getDailyHandBalls();
+  playStartHandBalls = getDailyHandBalls();
+
+  fixedPayoutEditIndex = -1;
+  $("fixedPayoutPanel")?.classList.add("is-hidden");
+  if ($("fixedPayoutNow")) $("fixedPayoutNow").value = "";
+
+  renderOwnedBalance();
+  renderSpinLog();
+  saveSession();
 }
 
 function getRestartValue(type) {
@@ -2139,6 +2241,7 @@ if (exchangeSel) {
     if (restored) {
       renderSpinLog();
       if (payoutConfirmIndex !== -1) $("payoutPanel")?.classList.remove("is-hidden");
+      if (fixedPayoutEditIndex !== -1) $("fixedPayoutPanel")?.classList.remove("is-hidden");
       if (pendingHitHandData) $("hitHandPanel")?.classList.remove("is-hidden");
       if (endBallsPending) $("endBallsPanel")?.classList.remove("is-hidden");
       setLogMode(pendingIndex !== -1 ? "afterHit" : "main");
@@ -3103,10 +3206,11 @@ function renderSpinLog() {
         : "";
 
     const disp = (x.payoutDisp ?? x.payout);
+    const hasPayout = disp !== null && disp !== undefined;
     const payoutText =
-      (disp === null || disp === undefined)
+      !hasPayout
         ? ""
-        : ` / 表記出玉：${disp}玉`;
+        : ` / 表記出玉：${fmtInt(Number(disp) || 0)}玉`;
 
     const endBallsText =
       (x.endBalls === null || x.endBalls === undefined)
@@ -3115,6 +3219,7 @@ function renderSpinLog() {
 
     const row = document.createElement("div");
     row.className = "log-item";
+    const canAdjustPayout = isFixedPayoutRow(x) && Number.isFinite(Number(x.payout));
     row.innerHTML = `
       <div>
         <div>${x.label}</div>
@@ -3122,7 +3227,10 @@ function renderSpinLog() {
           ${rangeText}${addText}${investText}${ownedText}${outputText}${payoutText}${endBallsText}
         </small>
       </div>
-      <div><small>#${i + 1}</small></div>
+      <div class="log-item__side">
+        <small>#${i + 1}</small>
+        ${canAdjustPayout ? `<button type="button" class="log-adjust-payout" data-payout-adjust-index="${i}">出玉調整</button>` : ""}
+      </div>
     `;
     list.appendChild(row);
   }
@@ -3440,6 +3548,7 @@ function resetTodayLogState() {
   spinLog = [];
   pendingIndex = -1;
   payoutConfirmIndex = -1;
+  fixedPayoutEditIndex = -1;
   endBallsPending = false;
   endBallsYame = null;
   pendingHitHandData = null;
@@ -3454,7 +3563,9 @@ function resetTodayLogState() {
   $("counterNow") && ($("counterNow").value = "");
   $("outputUseBalls") && ($("outputUseBalls").value = "");
   $("payoutPanel")?.classList.add("is-hidden");
+  $("fixedPayoutPanel")?.classList.add("is-hidden");
   $("endBallsPanel")?.classList.add("is-hidden");
+  $("fixedPayoutNow") && ($("fixedPayoutNow").value = "");
 
   renderConfirmedInvest();
   renderConfirmedOwned();
@@ -3867,6 +3978,7 @@ function syncOutputUseInput() {
 }
 
 function init() {
+  renderAppVersion();
   initMachineSelect();
   checkDailyLogRollover();
   renderMachineInfo(false);
@@ -3883,8 +3995,14 @@ function init() {
   $("btnHitHandConfirm")?.addEventListener("click", confirmHitHand);
   $("btnEndBallsConfirm")?.addEventListener("click", confirmEndBalls);
   $("btnPayoutConfirm")?.addEventListener("click", confirmPayout);
+  $("btnFixedPayoutConfirm")?.addEventListener("click", confirmFixedPayoutAdjust);
   $("resetLogBtn")?.addEventListener("click", resetTodayLog);
   $("btnCharge")?.addEventListener("click", () => confirmHitOutcome("charge"));
+  $("logList")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-payout-adjust-index]");
+    if (!btn) return;
+    startFixedPayoutAdjust(Number(btn.dataset.payoutAdjustIndex));
+  });
 
   $("add500")?.addEventListener("click", () => addQuickAmount(playSource === "cash" ? 500 : 125));
   $("add1000")?.addEventListener("click", () => addQuickAmount(playSource === "cash" ? 1000 : 250));
@@ -3933,7 +4051,7 @@ function init() {
   $("outputUseBalls")?.addEventListener("input", syncOutputUseInput);
   $("outputUseBalls")?.addEventListener("change", syncOutputUseInput);
 
-  ["counterNow", "payoutNow", "hitHandNow", "endBallsNow", "midBallsNow"].forEach((id) => {
+  ["counterNow", "payoutNow", "fixedPayoutNow", "hitHandNow", "endBallsNow", "midBallsNow"].forEach((id) => {
     $(id)?.addEventListener("input", queueSaveSession);
     $(id)?.addEventListener("change", queueSaveSession);
   });
@@ -3999,6 +4117,7 @@ function init() {
   if (restored) {
     renderSpinLog();
     if (payoutConfirmIndex !== -1) $("payoutPanel")?.classList.remove("is-hidden");
+    if (fixedPayoutEditIndex !== -1) $("fixedPayoutPanel")?.classList.remove("is-hidden");
     if (pendingHitHandData) $("hitHandPanel")?.classList.remove("is-hidden");
     if (endBallsPending) $("endBallsPanel")?.classList.remove("is-hidden");
     setLogMode(pendingIndex !== -1 ? "afterHit" : "main");
@@ -4043,6 +4162,10 @@ function init() {
   }
 
   saveSession();
+
+  if (navigator.storage?.persist) {
+    navigator.storage.persist().catch(() => {});
+  }
 
   $("machinePickerOpen")?.addEventListener("click", openMachinePicker);
   $("machinePickerClose")?.addEventListener("click", closeMachinePicker);

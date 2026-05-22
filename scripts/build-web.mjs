@@ -12,6 +12,7 @@ const files = [
   "style.css",
   "machines.js",
   "affiliate-links.js",
+  "app-meta.js",
   "app.js",
   "manifest.webmanifest",
   "service-worker.js"

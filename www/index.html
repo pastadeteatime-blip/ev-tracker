@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>&#26399;&#24453;&#20516;&#12488;&#12521;&#12483;&#12459;&#12540;</title>
 
-  <link rel="stylesheet" href="style.css?v=39" />
+  <link rel="stylesheet" href="style.css?v=41" />
   <link rel="manifest" href="./manifest.webmanifest">
 
   <!-- iOS / Web App Icons -->
@@ -31,7 +31,7 @@
       loading="eager"
     />
   </h1>
-  <p class="app-version">Version 1.1.16</p>
+  <p class="app-version">Version ...</p>
 
   <main class="container">
 
@@ -159,6 +159,14 @@
               <input type="number" id="payoutNow" inputmode="numeric" />
             </label>
             <button type="button" class="chip state" id="btnPayoutConfirm">&#34920;&#35352;&#20986;&#29577;&#12434;&#30906;&#23450;</button>
+          </div>
+
+          <div id="fixedPayoutPanel" class="is-hidden">
+            <label>
+              &#20170;&#22238;&#12398;&#34920;&#31034;&#20986;&#29577;
+              <input type="number" id="fixedPayoutNow" inputmode="numeric" />
+            </label>
+            <button type="button" class="chip state" id="btnFixedPayoutConfirm">&#20986;&#29577;&#12434;&#21453;&#26144;</button>
           </div>
 
           <!-- &#25345;&#12385;&#29577;&#20837;&#21147;&#12497;&#12493;&#12523;&#65288;&#12516;&#12513;&#12398;&#26178;&#12384;&#12369;&#20986;&#12377;&#65289; -->
@@ -396,8 +404,9 @@
   </section>
 
   <script src="./affiliate-links.js?v=28"></script>
-  <script src="./machines.js?v=39"></script>
-  <script src="./app.js?v=39"></script>
+  <script src="./app-meta.js?v=41"></script>
+  <script src="./machines.js?v=41"></script>
+  <script src="./app.js?v=41"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
