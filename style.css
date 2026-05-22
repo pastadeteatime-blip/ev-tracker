@@ -690,6 +690,7 @@ progress::-webkit-progress-value{
   color: #475569;
   font-size: 0.95rem;
   line-height: 1.6;
+  white-space: pre-line;
 }
 
 .app-dialog > button{
@@ -850,6 +851,30 @@ progress.goal-rainbow::-moz-progress-bar{
   margin: 0 0 10px;
   font-size: 0.9rem;
   color: rgba(15,23,42,0.75);
+}
+
+.final-calc-preview{
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  border: 1px solid rgba(148, 163, 184, 0.42);
+  color: #334155;
+}
+
+.final-calc-preview__label{
+  margin-bottom: 4px;
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: #64748b;
+}
+
+.final-calc-preview__formula{
+  font-size: 1.02rem;
+  font-weight: 900;
+  line-height: 1.35;
+  color: #0f172a;
+  overflow-wrap: anywhere;
 }
 
 
@@ -1060,19 +1085,37 @@ progress.goal-rainbow::-moz-progress-bar{
   color: rgba(15,23,42,0.6);         
 }
 
+.mid-formula-preview{
+  margin: 12px 0 0;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  border: 1px solid rgba(148, 163, 184, 0.42);
+  color: #0f172a;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
 
 .kv-list{
   display: grid;
   row-gap: 6px;
-  margin-top: 10px;
-  justify-content: center;
+  margin: 12px auto 0;
+  justify-content: start;
+  width: fit-content;
+  transform: translateX(-8px);
 }
 
 .kv-row{
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: minmax(7.5em, max-content) max-content;
   column-gap: 8px;
   align-items: baseline;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .kv-key{
@@ -1090,28 +1133,19 @@ progress.goal-rainbow::-moz-progress-bar{
 }
 
 
-.kv-list {
-  margin-top: 12px;
-}
-
-.kv-row {
-  display: grid;
-  grid-template-columns: 8em auto; 
-  align-items: center;
-  gap: 4px;
-}
-
 .kv-key {
   font-size: 0.9rem;
   color: rgba(15, 23, 42, 0.7);
   font-weight: 400; 
   text-align: right;
+  white-space: nowrap;
 }
 
 .kv-val {
   font-size: 1rem;
   font-weight: 400; 
   color: #0f172a;
+  white-space: nowrap;
 }
 
 
@@ -1509,6 +1543,22 @@ progress.goal-rainbow::-moz-progress-bar{
 #storeChangeBtn:hover,
 #ownedBalanceSaveBtn:hover{
   filter: brightness(1.04);
+}
+
+#ownedBalanceSaveBtn:disabled,
+#ownedBalanceSaveBtn.is-disabled{
+  background: linear-gradient(180deg, #f1f5f9 0%, #d8e0ea 100%);
+  color: #94a3b8;
+  border-color: rgba(100, 116, 139, 0.24);
+  box-shadow: none;
+  opacity: 1;
+  cursor: default;
+  filter: none;
+}
+
+#ownedBalanceSaveBtn:disabled:hover,
+#ownedBalanceSaveBtn.is-disabled:hover{
+  filter: none;
 }
 
 .store-picker-overlay{

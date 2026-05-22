@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>&#26399;&#24453;&#20516;&#12488;&#12521;&#12483;&#12459;&#12540;</title>
 
-  <link rel="stylesheet" href="style.css?v=32" />
+  <link rel="stylesheet" href="style.css?v=39" />
   <link rel="manifest" href="./manifest.webmanifest">
 
   <!-- iOS / Web App Icons -->
@@ -201,7 +201,7 @@
 
       <label id="ownedUseLabel" class="is-hidden">
         &#36015;&#29577;&#20351;&#29992;&#65288;&#29577;&#65289;
-        <input type="number" id="ownedUseBalls" inputmode="numeric" min="0" step="125"/>
+        <input type="number" id="ownedUseBalls" inputmode="numeric" step="125"/>
       </label>
 
       <div id="outputUseLabel" class="output-use-row is-hidden">
@@ -239,6 +239,7 @@
 
     <!-- expectation calculation -->
     <section class="card" id="finalCalcCard">
+      <div id="finalCalcPreview" class="final-calc-preview is-hidden" aria-live="polite"></div>
       <button type="button" id="finalCalcBtn">&#26399;&#24453;&#20516;&#35336;&#31639;</button>
 
       <p id="finalResult" class="final-result" aria-live="polite"></p>
@@ -395,8 +396,8 @@
   </section>
 
   <script src="./affiliate-links.js?v=28"></script>
-  <script src="./machines.js?v=32"></script>
-  <script src="./app.js?v=32"></script>
+  <script src="./machines.js?v=39"></script>
+  <script src="./app.js?v=39"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
@@ -439,12 +440,9 @@
 </label>
 <button type="button" class="chip state" id="midBallsConfirm">&#35336;&#31639;</button>
 
-    <div class="kv-list">
-      <div class="kv-row">
-        <span class="kv-key">&#22238;&#36578;&#25968;</span>
-        <span class="kv-val" id="midSpinVal">&#8212;</span>
-      </div>
+    <div id="midFormulaPreview" class="mid-formula-preview is-hidden" aria-live="polite"></div>
 
+    <div class="kv-list">
       <div class="kv-row">
         <span class="kv-key">&#29694;&#22312;&#12398;&#22238;&#36578;&#29575;</span>
         <span class="kv-val" id="midRateVal">&#8212;</span>
