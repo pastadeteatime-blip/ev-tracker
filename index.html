@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>&#26399;&#24453;&#20516;&#12488;&#12521;&#12483;&#12459;&#12540;</title>
 
-  <link rel="stylesheet" href="style.css?v=41" />
+  <link rel="stylesheet" href="style.css?v=43" />
   <link rel="manifest" href="./manifest.webmanifest">
 
   <!-- iOS / Web App Icons -->
@@ -89,10 +89,12 @@
           </div>
           <div class="owned-summary">
             <div class="owned-values">
+              <strong id="dailyCashOnHand">&#20837;&#24215;&#26178;&#25152;&#25345;&#37329;&#65306;----</strong>
               <strong id="ownedBalance">&#36015;&#29577;&#65306;0&#29577;</strong>
               <span id="currentHandBalls" class="current-hand-balls">&#25345;&#12385;&#29577;&#65306;----</span>
             </div>
             <div class="owned-edit">
+              <button type="button" id="dailyCashSaveBtn" class="chip neutral">&#20837;&#24215;&#26178;&#25152;&#25345;&#37329;&#12434;&#20837;&#21147;</button>
               <button type="button" id="ownedBalanceSaveBtn" class="chip neutral">&#36015;&#29577;&#12434;&#26356;&#26032;</button>
             </div>
           </div>
@@ -204,18 +206,27 @@
 
       <label>
         &#25237;&#36039;&#38989;&#65288;&#20170;&#22238;&#36861;&#21152;&#20998;&#65289;
-        <input type="number" id="investYen" inputmode="numeric" min="0" step="500"/>
+        <span class="clearable-input">
+          <input type="number" id="investYen" inputmode="numeric" min="0" step="500"/>
+          <button type="button" class="input-clear-btn" data-clear-target="investYen" aria-label="&#25237;&#36039;&#38989;&#12434;&#12463;&#12522;&#12450;">&times;</button>
+        </span>
       </label>
 
       <label id="ownedUseLabel" class="is-hidden">
         &#36015;&#29577;&#20351;&#29992;&#65288;&#29577;&#65289;
-        <input type="number" id="ownedUseBalls" inputmode="numeric" step="125"/>
+        <span class="clearable-input">
+          <input type="number" id="ownedUseBalls" inputmode="numeric" step="125"/>
+          <button type="button" class="input-clear-btn" data-clear-target="ownedUseBalls" aria-label="&#36015;&#29577;&#20351;&#29992;&#12434;&#12463;&#12522;&#12450;">&times;</button>
+        </span>
       </label>
 
       <div id="outputUseLabel" class="output-use-row is-hidden">
         <label>
           &#29694;&#22312;&#12398;&#25345;&#12385;&#29577;
-          <input type="number" id="outputUseBalls" inputmode="numeric" min="0" step="1"/>
+          <span class="clearable-input">
+            <input type="number" id="outputUseBalls" inputmode="numeric" min="0" step="1"/>
+            <button type="button" class="input-clear-btn" data-clear-target="outputUseBalls" aria-label="&#29694;&#22312;&#12398;&#25345;&#12385;&#29577;&#12434;&#12463;&#12522;&#12450;">&times;</button>
+          </span>
         </label>
         <button type="button" id="outputUseBtn" class="chip state">&#29694;&#22312;&#12398;&#25345;&#12385;&#29577;&#12363;&#12425;&#25237;&#36039;&#20998;&#12434;&#35336;&#31639;</button>
       </div>
@@ -341,13 +352,16 @@
       <h2>&#27231;&#31278;&#12434;&#36984;&#25246;</h2>
       <button type="button" id="machinePickerClose" class="machine-picker-close" aria-label="&#38281;&#12376;&#12427;">&times;</button>
     </div>
-    <input
-      type="search"
-      id="machineSearchInput"
-      class="machine-search-input"
-      placeholder="&#27231;&#31278;&#21517;&#12539;&#12473;&#12506;&#12483;&#12463;&#12391;&#26908;&#32034;"
-      autocomplete="off"
-    />
+    <div class="clearable-input picker-search-wrap">
+      <input
+        type="search"
+        id="machineSearchInput"
+        class="machine-search-input"
+        placeholder="&#27231;&#31278;&#21517;&#12539;&#12473;&#12506;&#12483;&#12463;&#12391;&#26908;&#32034;"
+        autocomplete="off"
+      />
+      <button type="button" class="input-clear-btn" data-clear-target="machineSearchInput" aria-label="&#27231;&#31278;&#26908;&#32034;&#12434;&#12463;&#12522;&#12450;">&times;</button>
+    </div>
     <div class="machine-picker-tabs" role="tablist" aria-label="&#27231;&#31278;&#12459;&#12486;&#12468;&#12522;">
       <button type="button" class="machine-picker-tab is-active" data-machine-filter="all">&#12377;&#12409;&#12390;</button>
       <button type="button" class="machine-picker-tab" data-machine-filter="favorite">&#12362;&#27671;&#12395;&#20837;&#12426;</button>
@@ -368,13 +382,16 @@
       <h2>&#24215;&#33303;&#12434;&#36984;&#25246;</h2>
       <button type="button" id="storePickerClose" class="store-picker-close" aria-label="&#38281;&#12376;&#12427;">&times;</button>
     </div>
-    <input
-      type="search"
-      id="storeSearchInput"
-      class="store-search-input"
-      placeholder="&#24215;&#33303;&#21517;&#12391;&#26908;&#32034;"
-      autocomplete="off"
-    />
+    <div class="clearable-input picker-search-wrap">
+      <input
+        type="search"
+        id="storeSearchInput"
+        class="store-search-input"
+        placeholder="&#24215;&#33303;&#21517;&#12391;&#26908;&#32034;"
+        autocomplete="off"
+      />
+      <button type="button" class="input-clear-btn" data-clear-target="storeSearchInput" aria-label="&#24215;&#33303;&#26908;&#32034;&#12434;&#12463;&#12522;&#12450;">&times;</button>
+    </div>
     <div id="storePickerList" class="store-picker-list"></div>
   </section>
 
@@ -393,7 +410,10 @@
     <div id="appDialogForm" class="app-dialog-form is-hidden">
       <label>
         <span id="appDialogInputLabel"></span>
-        <input type="number" id="appDialogInput" inputmode="numeric" min="0" step="1" />
+        <span class="clearable-input">
+          <input type="number" id="appDialogInput" inputmode="numeric" min="0" step="1" />
+          <button type="button" class="input-clear-btn" data-clear-target="appDialogInput" aria-label="&#20837;&#21147;&#12434;&#12463;&#12522;&#12450;">&times;</button>
+        </span>
       </label>
       <div class="app-dialog-actions">
         <button type="button" id="appDialogCancel" class="chip undo">&#25147;&#12427;</button>
@@ -404,9 +424,9 @@
   </section>
 
   <script src="./affiliate-links.js?v=28"></script>
-  <script src="./app-meta.js?v=41"></script>
-  <script src="./machines.js?v=41"></script>
-  <script src="./app.js?v=41"></script>
+  <script src="./app-meta.js?v=43"></script>
+  <script src="./machines.js?v=43"></script>
+  <script src="./app.js?v=43"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
@@ -445,7 +465,10 @@
 
 <label class="mid-balls-input">
   &#29694;&#22312;&#12398;&#25345;&#12385;&#29577;
-  <input type="number" id="midBallsNow" inputmode="numeric" />
+  <span class="clearable-input">
+    <input type="number" id="midBallsNow" inputmode="numeric" />
+    <button type="button" class="input-clear-btn" data-clear-target="midBallsNow" aria-label="&#29694;&#22312;&#12398;&#25345;&#12385;&#29577;&#12434;&#12463;&#12522;&#12450;">&times;</button>
+  </span>
 </label>
 <button type="button" class="chip state" id="midBallsConfirm">&#35336;&#31639;</button>
 

@@ -19,6 +19,7 @@ const LS_STORE_EXCHANGES = "evTracker_storeExchanges_v1";
 const LS_TOTAL_VIEW_MODE = "evTracker_totalViewMode_v1";
 const LS_DAILY_LOG_DATE = "evTracker_dailyLogDate_v1";
 const LS_DAILY_HAND_BALLS = "evTracker_dailyHandBalls_v1";
+const LS_DAILY_CASH_ON_HAND = "evTracker_dailyCashOnHand_v1";
 const LS_ACTIVE_SESSION = "evTracker_activeSession_v1";
 const BACKUP_APP_ID = "ev-tracker";
 const BACKUP_SCHEMA_VERSION = 1;
@@ -118,7 +119,35 @@ function getSessionDraftInputs() {
 
 function restoreInputValue(id, value) {
   const el = $(id);
-  if (el && typeof value === "string") el.value = value;
+  if (el && typeof value === "string") {
+    el.value = value;
+    updateClearButtonForInput(el);
+  }
+}
+
+function updateClearButtonForInput(input) {
+  if (!input?.id) return;
+  const btn = document.querySelector(`[data-clear-target="${input.id}"]`);
+  if (!btn) return;
+  btn.classList.toggle("is-hidden", input.value === "");
+}
+
+function initClearableInputs() {
+  document.querySelectorAll("[data-clear-target]").forEach((btn) => {
+    const input = $(btn.dataset.clearTarget);
+    if (!input) return;
+
+    updateClearButtonForInput(input);
+    input.addEventListener("input", () => updateClearButtonForInput(input));
+    input.addEventListener("change", () => updateClearButtonForInput(input));
+
+    btn.addEventListener("click", () => {
+      input.value = "";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      input.focus();
+    });
+  });
 }
 
 function renderAppVersion() {
@@ -225,6 +254,50 @@ function showOwnedBalanceInputDialog() {
   input.min = "0";
   input.step = "1";
   input.value = String(getOwnedBalance());
+  updateClearButtonForInput(input);
+  if (saveBtn) saveBtn.textContent = "更新";
+  form.classList.remove("is-hidden");
+  okBtn.classList.add("is-hidden");
+
+  overlay.classList.remove("is-hidden");
+  overlay.setAttribute("aria-hidden", "false");
+  dialog.classList.remove("is-hidden");
+
+  if (appDialogCloseHandler) {
+    document.removeEventListener("keydown", appDialogCloseHandler);
+  }
+  appDialogCloseHandler = (event) => {
+    if (event.key === "Escape") hideAppDialog();
+  };
+  document.addEventListener("keydown", appDialogCloseHandler);
+
+  input.focus();
+  input.select();
+}
+
+function showDailyCashInputDialog() {
+  const overlay = $("appDialogOverlay");
+  const dialog = $("appDialog");
+  const titleEl = $("appDialogTitle");
+  const messageEl = $("appDialogMessage");
+  const form = $("appDialogForm");
+  const label = $("appDialogInputLabel");
+  const input = $("appDialogInput");
+  const okBtn = $("appDialogOk");
+  const saveBtn = $("appDialogSave");
+
+  if (!overlay || !dialog || !titleEl || !messageEl || !form || !input || !okBtn) return;
+
+  appDialogMode = "dailyCash";
+  titleEl.textContent = "入店時所持金を入力";
+  messageEl.textContent = "入店時に持っていた現金を入力してください";
+  if (label) label.textContent = "入店時所持金";
+  input.type = "number";
+  input.inputMode = "numeric";
+  input.min = "0";
+  input.step = "1000";
+  input.value = String(getDailyCashOnHand());
+  updateClearButtonForInput(input);
   if (saveBtn) saveBtn.textContent = "更新";
   form.classList.remove("is-hidden");
   okBtn.classList.add("is-hidden");
@@ -267,6 +340,7 @@ function showStoreAddDialog() {
   input.removeAttribute("min");
   input.removeAttribute("step");
   input.value = "";
+  updateClearButtonForInput(input);
   if (saveBtn) saveBtn.textContent = "決定";
   form.classList.remove("is-hidden");
   okBtn.classList.add("is-hidden");
@@ -289,6 +363,11 @@ function showStoreAddDialog() {
 function confirmAppDialogForm() {
   if (appDialogMode === "storeAdd") {
     saveNewStore();
+    return;
+  }
+
+  if (appDialogMode === "dailyCash") {
+    confirmDailyCashDialog();
     return;
   }
 
@@ -315,6 +394,22 @@ function confirmOwnedBalanceDialog() {
   saveSession();
   renderOwnedBalance();
   showAppDialog("貯玉を更新しました", `${fmtInt(value)}玉に更新しました`);
+}
+
+function confirmDailyCashDialog() {
+  const input = $("appDialogInput");
+  const value = Number(input?.value);
+  if (!Number.isFinite(value) || value < 0) {
+    const messageEl = $("appDialogMessage");
+    if (messageEl) messageEl.textContent = "入店時所持金を0以上の数値で入力してください";
+    input?.focus();
+    return;
+  }
+
+  setDailyCashOnHand(value);
+  saveSession();
+  renderOwnedBalance();
+  showAppDialog("入店時所持金を更新しました", `${fmtInt(value)}円に更新しました`);
 }
 function fmtRate1(n) {
   if (!Number.isFinite(n)) return "0.0";
@@ -394,6 +489,17 @@ function setDailyHandBalls(value) {
   localStorage.setItem(LS_DAILY_HAND_BALLS, String(balls));
   renderOwnedBalance();
   return balls;
+}
+
+function getDailyCashOnHand() {
+  return Math.max(0, Math.floor(Number(localStorage.getItem(LS_DAILY_CASH_ON_HAND)) || 0));
+}
+
+function setDailyCashOnHand(value) {
+  const yen = Math.max(0, Math.floor(Number(value) || 0));
+  localStorage.setItem(LS_DAILY_CASH_ON_HAND, String(yen));
+  renderOwnedBalance();
+  return yen;
 }
 
 function renderAffiliateLinks() {
@@ -832,6 +938,14 @@ function renderStoreControls() {
 function renderOwnedBalance() {
   const currentBalance = getOwnedBalance();
 
+  const dailyCash = $("dailyCashOnHand");
+  if (dailyCash) {
+    const cash = getDailyCashOnHand();
+    dailyCash.textContent = cash <= 0
+      ? "入店時所持金：----"
+      : `入店時所持金：${fmtInt(cash)}円`;
+  }
+
   const balance = $("ownedBalance");
   if (balance) {
     balance.textContent = `貯玉：${fmtInt(currentBalance)}玉`;
@@ -866,6 +980,10 @@ function saveOwnedBalanceInput() {
   const hasActiveStore = Boolean(normalizeStoreName(selectedStore) && getStoreNames().includes(normalizeStoreName(selectedStore)));
   if (!hasActiveStore) return;
   showOwnedBalanceInputDialog();
+}
+
+function saveDailyCashInput() {
+  showDailyCashInputDialog();
 }
 
 function selectStore(name) {
@@ -1002,6 +1120,7 @@ function clearAllDailySessions() {
     localStorage.removeItem(getSessionKey(machine.id));
   }
   localStorage.removeItem(LS_DAILY_HAND_BALLS);
+  localStorage.removeItem(LS_DAILY_CASH_ON_HAND);
   localStorage.removeItem(LS_ACTIVE_SESSION);
 }
 
@@ -1019,7 +1138,8 @@ function hasActiveDailySession() {
     investYen !== 0 ||
     ownedUseBalls !== 0 ||
     outputUseBalls !== 0 ||
-    getDailyHandBalls() > 0
+    getDailyHandBalls() > 0 ||
+    getDailyCashOnHand() > 0
   );
 }
 
@@ -1031,6 +1151,7 @@ function clearCurrentDailyState() {
   confirmedOwnedBalls = 0;
   confirmedOutputBalls = 0;
   setDailyHandBalls(0);
+  setDailyCashOnHand(0);
   playStartHandBalls = null;
   investmentsSincePlayBoundary = 0;
   renderConfirmedInvest();
@@ -1150,13 +1271,13 @@ function queueSaveSession() {
   }, 150);
 }
 
-function loadSession() {
+function loadSession(useActiveFallback = true) {
   try {
     const key = getSessionKey(selectedMachine.id);
     let raw = localStorage.getItem(key);
     let data = raw ? JSON.parse(raw) : null;
 
-    if (!data) {
+    if (!data && useActiveFallback) {
       const activeRaw = localStorage.getItem(LS_ACTIVE_SESSION);
       const active = activeRaw ? JSON.parse(activeRaw) : null;
       const activeMachine = MACHINES.find((m) => m.id === active?.machineId);
@@ -1171,6 +1292,7 @@ function loadSession() {
       loadTotalsForSelectedMachine();
       data = active;
     }
+    if (!data) return false;
 
     spinLog = Array.isArray(data.spinLog) ? data.spinLog : [];
     pendingIndex = Number.isFinite(data.pendingIndex) ? data.pendingIndex : -1;
@@ -2237,7 +2359,7 @@ if (exchangeSel) {
     hasStarted = false;
     updateStartButton();
 
-    const restored = loadSession();
+    const restored = loadSession(false);
     if (restored) {
       renderSpinLog();
       if (payoutConfirmIndex !== -1) $("payoutPanel")?.classList.remove("is-hidden");
@@ -2362,6 +2484,7 @@ function setInvestYen(value, skipSave = false) {
   if (el) {
     el.value = (investYen === 0 ? "" : String(investYen));
     el.style.color = investYen < 0 ? "#dc2626" : "";
+    updateClearButtonForInput(el);
   }
 
   updateInvestButtons();
@@ -2375,6 +2498,7 @@ function setOwnedUseBalls(value, skipSave = false) {
   if (el) {
     el.value = ownedUseBalls === 0 ? "" : String(ownedUseBalls);
     el.style.color = ownedUseBalls < 0 ? "#dc2626" : "";
+    updateClearButtonForInput(el);
   }
 
   if (!skipSave) saveSession();
@@ -2384,7 +2508,10 @@ function setOutputUseBalls(value, skipSave = false) {
   outputUseBalls = Math.max(0, Math.floor(Number(value) || 0));
 
   const el = $("outputUseBalls");
-  if (el) el.value = outputUseBalls === 0 ? "" : String(outputUseBalls);
+  if (el) {
+    el.value = outputUseBalls === 0 ? "" : String(outputUseBalls);
+    updateClearButtonForInput(el);
+  }
 
   if (!skipSave) saveSession();
 }
@@ -3538,6 +3665,7 @@ function resetTodayLogState() {
   setOwnedUseBalls(0);
   setOutputUseBalls(0);
   setDailyHandBalls(0);
+  setDailyCashOnHand(0);
   if (confirmedOwnedBalls > 0) addOwnedBalance(confirmedOwnedBalls);
   confirmedInvestYen = 0;
   confirmedOwnedBalls = 0;
@@ -3979,6 +4107,7 @@ function syncOutputUseInput() {
 
 function init() {
   renderAppVersion();
+  initClearableInputs();
   initMachineSelect();
   checkDailyLogRollover();
   renderMachineInfo(false);
@@ -4055,6 +4184,7 @@ function init() {
     $(id)?.addEventListener("input", queueSaveSession);
     $(id)?.addEventListener("change", queueSaveSession);
   });
+  $("dailyCashSaveBtn")?.addEventListener("click", saveDailyCashInput);
   $("ownedBalanceSaveBtn")?.addEventListener("click", saveOwnedBalanceInput);
   $("appDialogInput")?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {

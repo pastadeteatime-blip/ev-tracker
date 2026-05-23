@@ -134,6 +134,49 @@ input:focus, select:focus{
   box-shadow: 0 0 0 3px rgba(255, 216, 77, 0.35);
 }
 
+input[type="search"]::-webkit-search-cancel-button{
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.clearable-input{
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.clearable-input input{
+  padding-right: 40px;
+}
+
+.input-clear-btn{
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: rgba(226, 232, 240, 0.95);
+  color: #334155;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: none;
+  font-size: 1.15rem;
+  line-height: 1;
+  text-shadow: none;
+  touch-action: manipulation;
+}
+
+.input-clear-btn.is-hidden{
+  display: none;
+}
+
+.input-clear-btn:active{
+  transform: translateY(-50%) scale(0.94);
+}
+
 
 button{
   padding: 16px;
@@ -517,7 +560,12 @@ progress::-webkit-progress-value{
   box-shadow: none;
 }
 
-.machine-search-input{
+.machine-search-input,
+.store-search-input{
+  flex: none;
+}
+
+.picker-search-wrap{
   flex: none;
 }
 
@@ -784,7 +832,8 @@ progress::-webkit-progress-value{
   filter: grayscale(0.2);
 }
 
-#payoutPanel{margin-top: 10px;}
+#payoutPanel,
+#fixedPayoutPanel{margin-top: 10px;}
 #endBallsPanel{margin-top: 10px;}
 
 
@@ -800,13 +849,39 @@ input[type="number"]{
 
 
 #payoutPanel,
+#fixedPayoutPanel,
 #endBallsPanel{
   grid-column: 1 / -1;   
   width: 100%;
 }
 
+#fixedPayoutPanel{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(132px, 0.48fr);
+  gap: 10px;
+  align-items: end;
+}
+
+#fixedPayoutPanel label{
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+#fixedPayoutPanel input{
+  min-width: 0;
+}
+
+#btnFixedPayoutConfirm{
+  min-height: 48px;
+  padding: 8px 12px;
+  line-height: 1.15;
+  white-space: nowrap;
+}
 
 #payoutPanel button,
+#fixedPayoutPanel button,
 #endBallsPanel button{
   width: 100%;
 }
@@ -1518,8 +1593,10 @@ progress.goal-rainbow::-moz-progress-bar{
   font-size: 0.85rem;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto;
+  column-gap: 8px;
+  row-gap: 3px;
   align-items: center;
-  gap: 8px;
 }
 
 .owned-summary span,
@@ -1527,34 +1604,61 @@ progress.goal-rainbow::-moz-progress-bar{
   display: block;
 }
 
+.owned-values,
+.owned-edit{
+  display: contents;
+}
+
+#dailyCashOnHand{
+  grid-column: 1;
+  grid-row: 1;
+}
+
+#ownedBalance{
+  grid-column: 1;
+  grid-row: 2;
+}
+
+#currentHandBalls{
+  grid-column: 1;
+  grid-row: 3;
+}
+
+#dailyCashSaveBtn{
+  grid-column: 2;
+  grid-row: 1;
+}
+
+#ownedBalanceSaveBtn{
+  grid-column: 2;
+  grid-row: 2;
+}
+
 .owned-summary strong{
   margin-top: 0;
 }
 
 .current-hand-balls{
-  margin-top: 3px;
+  margin-top: 0;
   font-weight: 400;
   color: rgba(15, 23, 42, 0.68);
 }
 
-.owned-edit{
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-}
-
-#ownedBalanceSaveBtn{
+#ownedBalanceSaveBtn,
+#dailyCashSaveBtn{
   width: auto;
-  min-width: 82px;
-  height: 34px;
-  padding: 6px 10px;
+  min-width: 88px;
+  min-height: 28px;
+  padding: 4px 9px;
   font-size: 12px;
+  line-height: 1.15;
   box-shadow: none;
 }
 
 #storeAddBtn,
 #storeChangeBtn,
-#ownedBalanceSaveBtn{
+#ownedBalanceSaveBtn,
+#dailyCashSaveBtn{
   background: linear-gradient(180deg, #e7f7ff 0%, #bfe9fb 100%);
   color: #075985;
   border: 1px solid rgba(14, 116, 144, 0.35);
@@ -1563,7 +1667,8 @@ progress.goal-rainbow::-moz-progress-bar{
 
 #storeAddBtn:hover,
 #storeChangeBtn:hover,
-#ownedBalanceSaveBtn:hover{
+#ownedBalanceSaveBtn:hover,
+#dailyCashSaveBtn:hover{
   filter: brightness(1.04);
 }
 
