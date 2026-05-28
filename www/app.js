@@ -8,6 +8,7 @@ const TAN_PAYOUT_NET  = 360;
 const MACHINES = window.MACHINES;
 
 const LS_PREFIX = "evTracker_machineTotals_v1_";
+const LS_STORE_MACHINE_TOTALS_PREFIX = "evTracker_storeMachineTotals_v1_";
 const LS_SELECTED_MACHINE = "evTracker_selectedMachineId_v1";
 const LS_SELECTED_EXCHANGE = "evTracker_selectedExchange_v1";
 const LS_FAVORITE_MACHINES = "evTracker_favoriteMachineIds_v1";
@@ -1074,10 +1075,10 @@ function scrollToLogCard() {
   card.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function scrollToInvestCard() {
+function scrollToInvestCard(preferOutput = true) {
   const card = $("investCard");
   if (!card) return;
-  if (getDailyHandBalls() > 0) {
+  if (preferOutput && getDailyHandBalls() > 0) {
     setPlaySource("output", true);
   }
   card.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1476,6 +1477,13 @@ function renderMachinePickerList() {
       .map((id) => MACHINES.find((m) => m.id === id))
       .filter(Boolean);
   }
+  if (filter === "storeGood" || filter === "storeBad") {
+    machines = machines.filter((m) => {
+      const judge = getMachineStoreJudge(getMachineStoreJudgeTotals(m.id));
+      if (!judge) return false;
+      return filter === "storeGood" ? judge.isGood : !judge.isGood;
+    });
+  }
   if (query) {
     machines = machines.filter((m) => getMachineSearchText(m).includes(query));
   }
@@ -1485,16 +1493,23 @@ function renderMachinePickerList() {
   if (machines.length === 0) {
     const empty = document.createElement("p");
     empty.className = "machine-picker-empty";
-    empty.textContent = "該当する機種がありません";
+    empty.textContent = (filter === "storeGood" || filter === "storeBad") && !selectedStore
+      ? "店舗を選択すると判定で絞り込めます"
+      : "該当する機種がありません";
     list.appendChild(empty);
     return;
   }
 
   for (const machine of machines) {
+    const storeTotals = getMachineStoreJudgeTotals(machine.id);
+    const storeJudge = getMachineStoreJudge(storeTotals);
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "machine-picker-item";
     if (machine.id === selectedMachine.id) btn.classList.add("is-current");
+    if (storeJudge) {
+      btn.classList.add(storeJudge.isGood ? "is-store-good" : "is-store-bad");
+    }
     btn.dataset.machineId = machine.id;
 
     const title = document.createElement("strong");
@@ -1502,12 +1517,61 @@ function renderMachinePickerList() {
     btn.appendChild(title);
 
     const meta = document.createElement("span");
+    meta.className = "machine-picker-item__meta";
     const border = machine?.border?.[selectedExchange];
-    meta.textContent = `大当り ${machine.jackpot || "—"} / ${selectedExchange}玉ボーダー ${fmtBorder(border)}回/k`;
+    const specText = `大当り ${machine.jackpot || "—"} / ${selectedExchange}玉ボーダー ${fmtBorder(border)}回/k`;
+    const storeJudgeText = formatMachineStoreJudgeText(storeJudge);
+    const spec = document.createElement("span");
+    spec.className = "machine-picker-item__spec";
+    spec.textContent = specText;
+    meta.appendChild(spec);
+    if (storeJudgeText) {
+      const judge = document.createElement("span");
+      judge.className = "machine-picker-item__judge";
+      judge.textContent = storeJudgeText;
+      meta.appendChild(judge);
+    }
     btn.appendChild(meta);
 
     list.appendChild(btn);
   }
+}
+
+function getMachineStoreJudgeTotals(machineId) {
+  if (!selectedStore) return null;
+  const itemTotals = loadTotalsForStoreMachine(selectedStore, machineId);
+  return hasAnyTotals(itemTotals) ? itemTotals : null;
+}
+
+function formatMachineStoreJudgeText(itemTotals) {
+  if (!itemTotals) return "";
+  return `累計${fmtRate1(itemTotals.avgRate)}回/k（${itemTotals.diff >= 0 ? "+" : ""}${fmtRate1(itemTotals.diff)}）`;
+}
+
+function getMachineStoreJudge(itemTotals) {
+  if (!itemTotals) return null;
+
+  const spin = Number(itemTotals.totalSpin) || 0;
+  const consumedK = Number(itemTotals.totalConsumedK) || 0;
+  const avgTrueBorder = calcWeightedAverage(
+    itemTotals.totalTrueBorderWeighted,
+    itemTotals.totalTrueBorderCount
+  );
+
+  if (!(spin > 0) || !(consumedK > 0) || avgTrueBorder === null || !Number.isFinite(avgTrueBorder)) {
+    return null;
+  }
+
+  const avgRate = (spin / consumedK) * 250;
+  const diff = avgRate - avgTrueBorder;
+  const isGood = diff >= 0;
+  return {
+    avgRate,
+    avgTrueBorder,
+    diff,
+    isGood,
+    mark: isGood ? "○" : "×",
+  };
 }
 
 function openMachinePicker() {
@@ -1792,6 +1856,25 @@ function addOutcomePayoutToHand(row, payoutBalls) {
   renderOwnedBalance();
 }
 
+function getHitOptionLabel(type) {
+  const custom = selectedMachine?.hitOptionLabels?.[type];
+  if (custom) return custom;
+
+  if (type === "charge") return "チャージ";
+  if (type === "tan") return "単発";
+  if (type === "rushEnd") return "RUSH終了";
+  return "LT終了";
+}
+
+function getRowOutcomeType(row) {
+  if (row?.outcomeType) return row.outcomeType;
+  if (row?.label === "チャージ" || row?.label === "チンアナゴ") return "charge";
+  if (row?.label === "単発") return "tan";
+  if (row?.label === "RUSH終了") return "rushEnd";
+  if (row?.label === "LT終了") return "ltEnd";
+  return "";
+}
+
 function removeOutcomePayoutFromHand(row) {
   const balls = Math.max(0, Math.floor(Number(row?.handPayoutAdded) || 0));
   if (balls <= 0) return;
@@ -1799,11 +1882,25 @@ function removeOutcomePayoutFromHand(row) {
   setDailyHandBalls(getDailyHandBalls() - balls);
   if (row) delete row.handPayoutAdded;
   lastMidCheckBalls = getDailyHandBalls();
+  playStartHandBalls = getDailyHandBalls();
   renderOwnedBalance();
 }
 
+function resetOutcomeRowToPending(row) {
+  if (!row) return;
+
+  removeOutcomePayoutFromHand(row);
+  row.label = "当たり（未確定）";
+  row.nextStart = null;
+  row.payout = null;
+  row.payoutDisp = null;
+  delete row.handPayoutAdded;
+  delete row.outcomeType;
+}
+
 function isFixedPayoutRow(row) {
-  return row?.label === "単発" || row?.label === "チャージ";
+  const type = getRowOutcomeType(row);
+  return type === "tan" || type === "charge";
 }
 
 function startFixedPayoutAdjust(index) {
@@ -1890,15 +1987,11 @@ function confirmHitOutcome(type) {
   }
 
   const nextStart = getRestartValue(type);
-  const label =
-    type === "charge" ? "チャージ" :
-    type === "tan" ? "単発" :
-    type === "rushEnd" ? "RUSH終了" : "LT終了";
-
   const row = spinLog[pendingIndex];
   clearFinalResult();
   row.nextStart = nextStart;
-  row.label = label;
+  row.outcomeType = type;
+  row.label = getHitOptionLabel(type);
 
   nextStartCounter = nextStart;
 
@@ -2058,11 +2151,7 @@ function undoSpinEventUnified() {
   if (payoutConfirmIndex !== -1) {
     clearFinalResult();
     const row = spinLog[payoutConfirmIndex];
-    removeOutcomePayoutFromHand(row);
-    row.label = "当たり（未確定）";
-    row.nextStart = null;
-    row.payout = null;
-    row.payoutDisp = null;
+    resetOutcomeRowToPending(row);
 
     pendingIndex = payoutConfirmIndex;
     payoutConfirmIndex = -1;
@@ -2086,6 +2175,7 @@ function undoSpinEventUnified() {
     row.nextStart = row.from;
     row.payout = null;
     row.payoutDisp = null;
+    delete row.outcomeType;
 
     pendingIndex = -1;
 
@@ -2100,8 +2190,7 @@ function undoSpinEventUnified() {
     const last = spinLog[spinLog.length - 1];
     const prev = spinLog[spinLog.length - 2];
 
-    const prevIsOutcome =
-      prev.label === "単発" || prev.label === "RUSH終了" || prev.label === "LT終了" || prev.label === "チャージ";
+    const prevIsOutcome = Boolean(getRowOutcomeType(prev));
 
     const lastIsAutoStart =
       last.label === "開始" && (Number(last.add) || 0) === 0;
@@ -2110,11 +2199,7 @@ function undoSpinEventUnified() {
       clearFinalResult();
       spinLog.pop();
 
-      removeOutcomePayoutFromHand(prev);
-      prev.label = "当たり（未確定）";
-      prev.nextStart = null;
-      prev.payout = null;
-      prev.payoutDisp = null;
+      resetOutcomeRowToPending(prev);
 
       pendingIndex = spinLog.length - 1;
 
@@ -2129,7 +2214,8 @@ function undoSpinEventUnified() {
 
   if (spinLog.length === 0) return;
   clearFinalResult();
-  spinLog.pop();
+  const removed = spinLog.pop();
+  removeOutcomePayoutFromHand(removed);
 
   if (spinLog.length === 0) {
     hasStarted = false;
@@ -2404,6 +2490,12 @@ function getTotalsKey(machineId) {
   return `${LS_PREFIX}${machineId}`;
 }
 
+function getStoreMachineTotalsKey(store, machineId) {
+  const clean = normalizeStoreName(store);
+  if (!clean || !machineId) return "";
+  return `${LS_STORE_MACHINE_TOTALS_PREFIX}${encodeURIComponent(clean)}_${machineId}`;
+}
+
 function createEmptyTotals() {
   return {
     totalExpectBalls: 0,
@@ -2525,12 +2617,30 @@ function selectOutputUseInput() {
   });
 }
 
-function setPlaySource(source, selectOutputInput = false) {
-  playSource = ["cash", "owned", "output"].includes(source) ? source : "cash";
+function revealInvestSourceBody() {
+  const el = $("investSourceBody");
+  if (!el) return;
 
+  el.classList.remove("is-revealing");
+  el.classList.add("is-updating");
+
+  setTimeout(() => {
+    el.classList.remove("is-updating");
+    el.classList.add("is-revealing");
+
+    const onEnd = () => {
+      el.classList.remove("is-revealing");
+      el.removeEventListener("animationend", onEnd);
+    };
+    el.addEventListener("animationend", onEnd);
+  }, 90);
+}
+
+function renderPlaySourceControls(selectOutputInput = false) {
   $("playCashBtn")?.classList.toggle("is-active", playSource === "cash");
   $("playOwnedBtn")?.classList.toggle("is-active", playSource === "owned");
   $("playOutputBtn")?.classList.toggle("is-active", playSource === "output");
+
   $("investYen")?.closest("label")?.classList.toggle("is-hidden", playSource !== "cash");
   $("calcBtn")?.classList.toggle("is-hidden", playSource !== "cash");
   $("ownedUseLabel")?.classList.toggle("is-hidden", playSource !== "owned");
@@ -2546,7 +2656,21 @@ function setPlaySource(source, selectOutputInput = false) {
   }
 
   updateInvestButtons();
+  renderConfirmedInvest();
+  renderConfirmedOwned();
+  renderConfirmedOutput();
+}
+
+function setPlaySource(source, selectOutputInput = false, animateBody = false) {
+  playSource = ["cash", "owned", "output"].includes(source) ? source : "cash";
+  renderPlaySourceControls(selectOutputInput);
+  if (animateBody) revealInvestSourceBody();
   saveSession();
+}
+
+function selectPlaySourceFromTab(source, selectOutputInput = false) {
+  setPlaySource(source, selectOutputInput, true);
+  scrollToInvestCard(false);
 }
 
 function addInvest(amount) {
@@ -2598,6 +2722,44 @@ function subtractLastLogInvestment(prop, amount) {
     row[prop] = Math.max(0, current - value);
     if (row[prop] === 0) delete row[prop];
     break;
+  }
+}
+
+function loadTotalsForStoreMachine(store, machineId) {
+  const key = getStoreMachineTotalsKey(store, machineId);
+  if (!key) return createEmptyTotals();
+
+  const raw = localStorage.getItem(key);
+  if (!raw) return createEmptyTotals();
+
+  try {
+    return normalizeTotals(JSON.parse(raw));
+  } catch {
+    return createEmptyTotals();
+  }
+}
+
+function saveTotalsForStoreMachine(store, machineId, itemTotals) {
+  const key = getStoreMachineTotalsKey(store, machineId);
+  if (!key) return;
+  localStorage.setItem(key, JSON.stringify(itemTotals));
+}
+
+function resetStoreTotalsForMachine(machineId) {
+  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(LS_STORE_MACHINE_TOTALS_PREFIX) && key.endsWith(`_${machineId}`)) {
+      localStorage.removeItem(key);
+    }
+  }
+}
+
+function resetAllStoreMachineTotals() {
+  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(LS_STORE_MACHINE_TOTALS_PREFIX)) {
+      localStorage.removeItem(key);
+    }
   }
 }
 
@@ -2866,6 +3028,31 @@ function hasAnyTotals(t) {
     (Number(t.totalOwnedBallsUsed) || 0) > 0 ||
     (Number(t.totalHitCount) || 0) > 0
   );
+}
+
+function addSessionTotals(itemTotals, data) {
+  itemTotals.totalExpectBalls += data.todayBalls;
+  itemTotals.totalExpectYen = (Number(itemTotals.totalExpectYen) || 0) + data.todayYen;
+  itemTotals.totalSpin += data.spinCount;
+  itemTotals.totalInvestYen += data.confirmedInvestYen;
+  itemTotals.totalOwnedBallsUsed = (Number(itemTotals.totalOwnedBallsUsed) || 0) + data.ownedBallsUsed;
+  itemTotals.totalOutputBallsUsed = (Number(itemTotals.totalOutputBallsUsed) || 0) + data.totalOutputBallsUsed;
+  itemTotals.totalKInvested += data.investK;
+  itemTotals.totalHitCount += data.outcomeStats.hitCount;
+  itemTotals.totalTanCount = (Number(itemTotals.totalTanCount) || 0) + data.outcomeStats.tanCount;
+  itemTotals.totalRushCount = (Number(itemTotals.totalRushCount) || 0) + data.outcomeStats.rushCount;
+  itemTotals.totalLtCount = (Number(itemTotals.totalLtCount) || 0) + data.outcomeStats.ltCount;
+  itemTotals.totalRushPayoutDispSum = (Number(itemTotals.totalRushPayoutDispSum) || 0) + data.outcomeStats.rushPayoutDispSum;
+  itemTotals.totalRushPayoutDispCount = (Number(itemTotals.totalRushPayoutDispCount) || 0) + data.outcomeStats.rushPayoutDispCount;
+  itemTotals.totalLtPayoutDispSum = (Number(itemTotals.totalLtPayoutDispSum) || 0) + data.outcomeStats.ltPayoutDispSum;
+  itemTotals.totalLtPayoutDispCount = (Number(itemTotals.totalLtPayoutDispCount) || 0) + data.outcomeStats.ltPayoutDispCount;
+  itemTotals.totalConsumedK += data.consumedBalls;
+  itemTotals.totalOwnedRatioWeighted = (Number(itemTotals.totalOwnedRatioWeighted) || 0) + data.ownedRatio * data.spinCount;
+  itemTotals.totalOwnedRatioCount = (Number(itemTotals.totalOwnedRatioCount) || 0) + data.spinCount;
+  if (data.trueBorder !== null) {
+    itemTotals.totalTrueBorderWeighted = (Number(itemTotals.totalTrueBorderWeighted) || 0) + data.trueBorder * data.spinCount;
+    itemTotals.totalTrueBorderCount = (Number(itemTotals.totalTrueBorderCount) || 0) + data.spinCount;
+  }
 }
 
 function getGoalProgress(totalExpectBalls) {
@@ -3408,13 +3595,15 @@ function getActivePlayStartHandBalls() {
 
 function getOutcomeStatsFromLog() {
   return spinLog.reduce((stats, x) => {
-    if (x.label === "単発") {
+    const outcomeType = getRowOutcomeType(x);
+
+    if (outcomeType === "tan") {
       stats.tanCount += 1;
       stats.hitCount += 1;
       return stats;
     }
 
-    if (x.label === "RUSH終了") {
+    if (outcomeType === "rushEnd") {
       stats.rushCount += 1;
       stats.hitCount += 1;
 
@@ -3426,7 +3615,7 @@ function getOutcomeStatsFromLog() {
       return stats;
     }
 
-    if (x.label === "LT終了") {
+    if (outcomeType === "ltEnd") {
       stats.rushCount += 1;
       stats.ltCount += 1;
       stats.hitCount += 1;
@@ -3500,31 +3689,28 @@ function calc() {
   const todayYen = calcExpectationYenFromBalls(todayBalls);
 
   const outcomeStats = getOutcomeStatsFromLog();
+  const sessionTotals = {
+    todayBalls,
+    todayYen,
+    spinCount,
+    confirmedInvestYen,
+    ownedBallsUsed,
+    totalOutputBallsUsed,
+    investK,
+    outcomeStats,
+    consumedBalls,
+    ownedRatio,
+    trueBorder,
+  };
 
-  totals.totalExpectBalls += todayBalls;
-  totals.totalExpectYen = (Number(totals.totalExpectYen) || 0) + todayYen;
-  totals.totalSpin += spinCount;
-  totals.totalInvestYen += confirmedInvestYen;
-  totals.totalOwnedBallsUsed = (Number(totals.totalOwnedBallsUsed) || 0) + confirmedOwnedBalls;
-  totals.totalOutputBallsUsed = (Number(totals.totalOutputBallsUsed) || 0) + totalOutputBallsUsed;
-  totals.totalKInvested += investK;
-  totals.totalHitCount += outcomeStats.hitCount;
-  totals.totalTanCount = (Number(totals.totalTanCount) || 0) + outcomeStats.tanCount;
-  totals.totalRushCount = (Number(totals.totalRushCount) || 0) + outcomeStats.rushCount;
-  totals.totalLtCount = (Number(totals.totalLtCount) || 0) + outcomeStats.ltCount;
-  totals.totalRushPayoutDispSum = (Number(totals.totalRushPayoutDispSum) || 0) + outcomeStats.rushPayoutDispSum;
-  totals.totalRushPayoutDispCount = (Number(totals.totalRushPayoutDispCount) || 0) + outcomeStats.rushPayoutDispCount;
-  totals.totalLtPayoutDispSum = (Number(totals.totalLtPayoutDispSum) || 0) + outcomeStats.ltPayoutDispSum;
-  totals.totalLtPayoutDispCount = (Number(totals.totalLtPayoutDispCount) || 0) + outcomeStats.ltPayoutDispCount;
-  totals.totalConsumedK += consumedBalls;
-  totals.totalOwnedRatioWeighted = (Number(totals.totalOwnedRatioWeighted) || 0) + ownedRatio * spinCount;
-  totals.totalOwnedRatioCount = (Number(totals.totalOwnedRatioCount) || 0) + spinCount;
-  if (trueBorder !== null) {
-    totals.totalTrueBorderWeighted = (Number(totals.totalTrueBorderWeighted) || 0) + trueBorder * spinCount;
-    totals.totalTrueBorderCount = (Number(totals.totalTrueBorderCount) || 0) + spinCount;
-  }
+  addSessionTotals(totals, sessionTotals);
 
   saveTotalsForSelectedMachine();
+  if (selectedStore) {
+    const storeTotals = loadTotalsForStoreMachine(selectedStore, selectedMachine.id);
+    addSessionTotals(storeTotals, sessionTotals);
+    saveTotalsForStoreMachine(selectedStore, selectedMachine.id, storeTotals);
+  }
 
   const finalEl = $("finalResult");
   const borderVal = getCurrentBorder();
@@ -3611,6 +3797,7 @@ function resetAllMachineTotals() {
   for (const machine of MACHINES) {
     localStorage.setItem(getTotalsKey(machine.id), JSON.stringify(createEmptyTotals()));
   }
+  resetAllStoreMachineTotals();
 
   clearAllDailySessions();
   if (confirmedOwnedBalls > 0) addOwnedBalance(confirmedOwnedBalls);
@@ -3634,6 +3821,7 @@ function resetMachineTotals(machineId) {
   if (!confirm(`「${machine.name}」の累積データをリセットしますか？`)) return;
 
   localStorage.setItem(getTotalsKey(machine.id), JSON.stringify(createEmptyTotals()));
+  resetStoreTotalsForMachine(machine.id);
   updateView();
 }
 
@@ -3641,6 +3829,7 @@ function resetSelectedMachineTotals() {
   if (!confirm(`「${selectedMachine.name}」の累積データをリセットしますか？`)) return;
 
   totals = createEmptyTotals();
+  resetStoreTotalsForMachine(selectedMachine.id);
 
   currentGoalIndex = 0;
 
@@ -3810,7 +3999,10 @@ function updateHitOptionButtons() {
   Object.values(map).forEach((btn) => btn && btn.classList.add("is-hidden"));
 
   for (const key of opts) {
-    map[key]?.classList.remove("is-hidden");
+    const btn = map[key];
+    if (!btn) continue;
+    btn.textContent = getHitOptionLabel(key);
+    btn.classList.remove("is-hidden");
   }
 }
 
@@ -3841,6 +4033,7 @@ function showMidCheck() {
   setText("midMeterBorderValue", "—");
   $("midDiffVal").textContent = "—";
   $("midDiffVal")?.classList.remove("is-plus", "is-minus");
+  clearMidJudgeInline();
   $("midFormulaPreview")?.classList.add("is-hidden");
   if ($("midFormulaPreview")) $("midFormulaPreview").textContent = "";
 
@@ -3920,6 +4113,51 @@ function confirmMidCheck(forcedEndBalls = null) {
   }
 
   setResultTierClass(getRateTierClass(rotationRate, border));
+  updateMidJudgeInline(rotationRate, border);
+  showMidJudgePopup(rotationRate, border);
+}
+
+function getMidJudgeResult(rotationRate, border) {
+  const isGood = Number.isFinite(rotationRate) && Number.isFinite(border) && rotationRate >= border;
+  return {
+    isGood,
+    mark: isGood ? "○" : "×",
+    text: isGood ? "打つべし！" : "打つのは危険",
+  };
+}
+
+function updateMidJudgeInline(rotationRate, border) {
+  const inline = $("midJudgeInline");
+  const mark = $("midJudgeInlineMark");
+  const text = $("midJudgeInlineText");
+  if (!inline || !mark || !text) return;
+
+  const result = getMidJudgeResult(rotationRate, border);
+  inline.classList.remove("is-good", "is-bad", "is-hidden");
+  inline.classList.add(result.isGood ? "is-good" : "is-bad");
+  mark.textContent = result.mark;
+  text.textContent = result.text;
+}
+
+function clearMidJudgeInline() {
+  const inline = $("midJudgeInline");
+  if (!inline) return;
+  inline.classList.remove("is-good", "is-bad");
+  inline.classList.add("is-hidden");
+}
+
+function showMidJudgePopup(rotationRate, border) {
+  const popup = $("midJudgePopup");
+  const mark = $("midJudgeMark");
+  const text = $("midJudgeText");
+  if (!popup || !mark || !text) return;
+
+  const result = getMidJudgeResult(rotationRate, border);
+  popup.classList.remove("is-good", "is-bad", "is-hidden");
+  popup.classList.add(result.isGood ? "is-good" : "is-bad");
+  mark.textContent = result.mark;
+  text.textContent = result.text;
+  $("midJudgeClose")?.focus();
 }
 
 function getMidCheckCurrentCounter() {
@@ -4075,10 +4313,16 @@ function updateFinalRateMeter(rotationRate, border) {
 function closeMidCheck() {
   $("midCheckCard")?.classList.add("is-hidden");
   $("midOverlay")?.classList.add("is-hidden");
+  closeMidJudgePopup();
 
   const needle = $("midMeterNeedle");
   if (needle) needle.style.left = "50%";
   setText("midMeterBorderValue", "—");
+  clearMidJudgeInline();
+}
+
+function closeMidJudgePopup() {
+  $("midJudgePopup")?.classList.add("is-hidden");
 }
 
 function syncInvestInput() {
@@ -4139,9 +4383,9 @@ function init() {
   $("sub500")?.addEventListener("click", () => addQuickAmount(playSource === "cash" ? -500 : -125));
   $("ownedUseBtn")?.addEventListener("click", confirmOwnedUse);
   $("outputUseBtn")?.addEventListener("click", confirmOutputUse);
-  $("playCashBtn")?.addEventListener("click", () => setPlaySource("cash"));
-  $("playOwnedBtn")?.addEventListener("click", () => setPlaySource("owned"));
-  $("playOutputBtn")?.addEventListener("click", () => setPlaySource("output", true));
+  $("playCashBtn")?.addEventListener("click", () => selectPlaySourceFromTab("cash"));
+  $("playOwnedBtn")?.addEventListener("click", () => selectPlaySourceFromTab("owned"));
+  $("playOutputBtn")?.addEventListener("click", () => selectPlaySourceFromTab("output", true));
   $("skipInvest")?.addEventListener("click", skipInvest);
   $("clearInvest")?.addEventListener("click", clearCurrentPlayInput);
 
@@ -4149,6 +4393,7 @@ function init() {
   $("midCheckClose")?.addEventListener("click", closeMidCheck);
   $("midOverlay")?.addEventListener("click", closeMidCheck);
   $("midBallsConfirm")?.addEventListener("click", confirmMidCheck);
+  $("midJudgeClose")?.addEventListener("click", closeMidJudgePopup);
 
   $("calcBtn")?.addEventListener("click", confirmInvest);
   $("finalCalcBtn")?.addEventListener("click", () => {

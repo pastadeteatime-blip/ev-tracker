@@ -148,9 +148,11 @@ window.MACHINES = [
     border: { 25: 16.58, 28: 18.57, 30: 19.89, 33: 21.88 },
     jackpot: "1/259.7",
     rushEntry: "50%",
-    hitOptions: ["tan", "rushEnd" ],
-    restart: { tan: 0, ltEnd: 132 },
-    tanPayout: { disp: 310, net: 280 },
+    hitOptions: ["charge", "tan", "ltEnd" ],
+    hitOptionLabels: { charge: "チンアナゴ", tan: "単発", ltEnd: "RUSH終了" },
+    restart: { charge:0, tan: 0, ltEnd: 132 },
+    tanPayout: { disp: 600, net: 560 },
+    chargePayout: { disp: 310, net: 280 },
   },
 
   {

@@ -1,4 +1,5 @@
 node_modules/
+build/
 ios/App/App/public/
 DerivedData/
 .DS_Store

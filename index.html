@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>&#26399;&#24453;&#20516;&#12488;&#12521;&#12483;&#12459;&#12540;</title>
 
-  <link rel="stylesheet" href="style.css?v=43" />
+  <link rel="stylesheet" href="style.css?v=46" />
   <link rel="manifest" href="./manifest.webmanifest">
 
   <!-- iOS / Web App Icons -->
@@ -204,6 +204,7 @@
         </div>
       </div>
 
+      <div id="investSourceBody" class="invest-source-body machine-fade">
       <label>
         &#25237;&#36039;&#38989;&#65288;&#20170;&#22238;&#36861;&#21152;&#20998;&#65289;
         <span class="clearable-input">
@@ -252,6 +253,7 @@
 
       <button type="button" id="calcBtn">&#29694;&#37329;&#12434;&#25237;&#20837;</button>
       <button type="button" id="ownedUseBtn" class="is-hidden">&#36015;&#29577;&#12434;&#25237;&#20837;</button>
+      </div>
 
       <p id="result" aria-live="polite"></p>
     </section>
@@ -364,6 +366,8 @@
     </div>
     <div class="machine-picker-tabs" role="tablist" aria-label="&#27231;&#31278;&#12459;&#12486;&#12468;&#12522;">
       <button type="button" class="machine-picker-tab is-active" data-machine-filter="all">&#12377;&#12409;&#12390;</button>
+      <button type="button" class="machine-picker-tab" data-machine-filter="storeGood">&#12508;&#12540;&#12480;&#12540;&#36229;&#12360;</button>
+      <button type="button" class="machine-picker-tab" data-machine-filter="storeBad">&#21361;&#38522;</button>
       <button type="button" class="machine-picker-tab" data-machine-filter="favorite">&#12362;&#27671;&#12395;&#20837;&#12426;</button>
       <button type="button" class="machine-picker-tab" data-machine-filter="recent">&#26368;&#36817;</button>
     </div>
@@ -425,8 +429,8 @@
 
   <script src="./affiliate-links.js?v=28"></script>
   <script src="./app-meta.js?v=43"></script>
-  <script src="./machines.js?v=43"></script>
-  <script src="./app.js?v=43"></script>
+  <script src="./machines.js?v=45"></script>
+  <script src="./app.js?v=53"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
@@ -440,7 +444,13 @@
 
   <!-- mid-check modal -->
   <div id="midCheckCard" class="card mid-modal is-hidden" aria-label="途中経過">
-    <h3 class="section-title">&#36884;&#20013;&#32076;&#36942;</h3>
+    <div class="mid-check-heading">
+      <h3 class="section-title">&#36884;&#20013;&#32076;&#36942;</h3>
+      <div id="midJudgeInline" class="mid-judge-inline is-hidden" aria-live="polite">
+        <span id="midJudgeInlineMark" class="mid-judge-inline__mark">&#9675;</span>
+        <span id="midJudgeInlineText" class="mid-judge-inline__text">&#8212;</span>
+      </div>
+    </div>
 
     <div class="rate-meter" id="midRateMeter" aria-label="&#22238;&#36578;&#29575;&#12513;&#12540;&#12479;&#12540;">
       <div class="rate-meter__scale">
@@ -488,6 +498,12 @@
 
     <!-- close button -->
     <button id="midCheckClose" type="button" class="chip clear">&#38281;&#12376;&#12427;</button>
+  </div>
+
+  <div id="midJudgePopup" class="mid-judge-popup is-hidden" role="dialog" aria-modal="true" aria-label="&#22238;&#36578;&#29575;&#21028;&#23450;">
+    <div id="midJudgeMark" class="mid-judge-popup__mark" aria-hidden="true">&#9675;</div>
+    <p id="midJudgeText" class="mid-judge-popup__text">&#8212;</p>
+    <button id="midJudgeClose" type="button" class="chip state mid-judge-popup__close">&#38281;&#12376;&#12427;</button>
   </div>
 
 </body>
