@@ -10,7 +10,10 @@ if (!/^\d+\.\d+\.\d+$/.test(version)) {
   throw new Error("package.json version must use x.y.z format");
 }
 
-const buildNumber = version.split(".").at(-1);
+const buildNumber = String(pkg.iosBuildNumber || version.split(".").at(-1)).trim();
+if (!/^\d+$/.test(buildNumber)) {
+  throw new Error("package.json iosBuildNumber must be a numeric string when provided");
+}
 const projectPath = join(root, "ios/App/App.xcodeproj/project.pbxproj");
 let project = await readFile(projectPath, "utf8");
 
