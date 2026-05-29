@@ -154,7 +154,18 @@ function initClearableInputs() {
 function renderAppVersion() {
   const version = window.APP_VERSION || "";
   const versionEl = document.querySelector(".app-version");
-  if (versionEl && version) versionEl.textContent = `Version ${version}`;
+  if (!versionEl || !version) return;
+
+  const appScript = document.querySelector('script[src*="app.js"]');
+  const cacheVersion = appScript
+    ? new URL(appScript.getAttribute("src"), window.location.href).searchParams.get("v")
+    : "";
+  const baseVersion = version.split(".").slice(0, 2).join(".");
+  const displayVersion = cacheVersion && /^\d+$/.test(cacheVersion)
+    ? `${baseVersion}.${cacheVersion}`
+    : version;
+
+  versionEl.textContent = `Version ${displayVersion}`;
 }
 
 function fmtInt(n) {
