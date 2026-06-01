@@ -127,7 +127,7 @@ window.MACHINES = [
   {
     id: "eva17_hajimari",
     name: "e新世紀エヴァンゲリオン ～はじまりの記憶～",
-    tags: ["エヴァ", "えば", "エバ", "エヴァンゲリオン"],
+    tags: ["エヴァ", "えば17", "エバ17", "エヴァンゲリオン"],
     perSpinPayBalls: 14.84,
     costPer1kBalls: 250,
     border: { 25: 16.85, 28: 18.87, 30: 20.22, 33: 22.24 },
@@ -319,7 +319,7 @@ window.MACHINES = [
     chargePayout: { disp: 300, net: 280 },
     chargeCountsAsHit: true,
     rushIsLt: true,
-    tanPayout: { disp: 300, net: 280 },
+    tanPayout: { disp: 1050, net: 980 },
   },
 
   {

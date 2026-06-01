@@ -22,8 +22,10 @@ const LS_DAILY_LOG_DATE = "evTracker_dailyLogDate_v1";
 const LS_DAILY_HAND_BALLS = "evTracker_dailyHandBalls_v1";
 const LS_DAILY_CASH_ON_HAND = "evTracker_dailyCashOnHand_v1";
 const LS_ACTIVE_SESSION = "evTracker_activeSession_v1";
+const LS_SESSION_SNAPSHOTS = "evTracker_sessionSnapshots_v1";
 const BACKUP_APP_ID = "ev-tracker";
 const BACKUP_SCHEMA_VERSION = 1;
+const SESSION_SNAPSHOT_LIMIT = 8;
 
 
 const LS_SESSION_PREFIX = "evTracker_session_v1_";
@@ -95,6 +97,10 @@ let appDialogCloseHandler = null;
 let machinePickerScrollTop = 0;
 let totalViewReturnY = null;
 let saveSessionTimer = null;
+let investSourceRevealFrame = null;
+let investSourceRevealCleanup = null;
+let investSourceRevealTimer = null;
+let lastFinalResult = null;
 
 function $(id) {
   return document.getElementById(id);
@@ -441,12 +447,91 @@ function setText(id, text) {
 }
 
 function clearFinalResult() {
+  lastFinalResult = null;
+  clearFinalResultView();
+}
+
+function clearFinalResultView() {
   const finalEl = $("finalResult");
   if (finalEl) finalEl.innerText = "";
 
   $("finalRateMeter")?.classList.add("is-hidden");
   const finalNeedle = $("finalMeterNeedle");
   if (finalNeedle) finalNeedle.style.left = "50%";
+}
+
+function normalizeFinalResult(data) {
+  if (!data || typeof data !== "object") return null;
+
+  const result = {
+    ownedRatio: Number(data.ownedRatio),
+    trueBorder: data.trueBorder === null ? null : Number(data.trueBorder),
+    rotationRate: Number(data.rotationRate),
+    diffBorder: data.diffBorder === null ? null : Number(data.diffBorder),
+    todayYen: Number(data.todayYen),
+  };
+
+  if (!Number.isFinite(result.ownedRatio) ||
+      !Number.isFinite(result.rotationRate) ||
+      !Number.isFinite(result.todayYen)) {
+    return null;
+  }
+
+  result.ownedRatio = Math.max(0, Math.min(1, result.ownedRatio));
+  if (!Number.isFinite(result.trueBorder)) result.trueBorder = null;
+  if (!Number.isFinite(result.diffBorder)) result.diffBorder = null;
+
+  return result;
+}
+
+function renderFinalResultView(data = lastFinalResult) {
+  const result = normalizeFinalResult(data);
+  if (!result) {
+    clearFinalResultView();
+    return;
+  }
+
+  const finalEl = $("finalResult");
+  const rateDiff = Number.isFinite(result.diffBorder) ? result.rotationRate - result.diffBorder : null;
+  const rateDiffText = rateDiff === null
+    ? ""
+    : ` (${rateDiff >= 0 ? "+" : ""}${fmtRate1(rateDiff)})`;
+  const rateDiffClass =
+    rateDiff === null || rateDiff === 0
+      ? ""
+      : rateDiff > 0
+        ? "is-plus"
+        : "is-minus";
+
+  if (finalEl) {
+    finalEl.innerHTML = "";
+
+    const ownedRatioLine = document.createElement("div");
+    ownedRatioLine.textContent = `持ち玉比率：${Math.round(result.ownedRatio * 100)}%`;
+    finalEl.appendChild(ownedRatioLine);
+
+    if (result.trueBorder !== null) {
+      const trueBorderLine = document.createElement("div");
+      trueBorderLine.textContent = `真ボーダー：${fmtRate1(result.trueBorder)} 回/k`;
+      finalEl.appendChild(trueBorderLine);
+    }
+
+    const rateLine = document.createElement("div");
+    rateLine.appendChild(document.createTextNode(`今回の回転率：${fmtRate1(result.rotationRate)} 回/k`));
+    if (rateDiffText) {
+      const diffSpan = document.createElement("span");
+      diffSpan.className = `rate-diff ${rateDiffClass}`;
+      diffSpan.textContent = rateDiffText;
+      rateLine.appendChild(diffSpan);
+    }
+    finalEl.appendChild(rateLine);
+
+    const evLine = document.createElement("div");
+    evLine.textContent = `今回の期待値：${result.todayYen >= 0 ? "+" : ""}${fmtInt(result.todayYen)}円`;
+    finalEl.appendChild(evLine);
+  }
+
+  updateFinalRateMeter(result.rotationRate, result.diffBorder);
 }
 
 function getFinalCalcInvestInputs() {
@@ -476,7 +561,7 @@ function renderFinalCalcPreview() {
   const hasBlockingPending = payoutConfirmIndex !== -1 || endBallsPending;
   const formula = formatFinalCalcFormula({
     spinCount,
-    ...getFinalCalcInvestInputs(),
+    ...getFinalCalcPreviewInputs(),
   });
 
   if (spinCount <= 0 || !hasConfirmedStop || hasBlockingPending || !formula) {
@@ -1134,6 +1219,7 @@ function clearAllDailySessions() {
   localStorage.removeItem(LS_DAILY_HAND_BALLS);
   localStorage.removeItem(LS_DAILY_CASH_ON_HAND);
   localStorage.removeItem(LS_ACTIVE_SESSION);
+  localStorage.removeItem(LS_SESSION_SNAPSHOTS);
 }
 
 function hasActiveDailySession() {
@@ -1151,7 +1237,8 @@ function hasActiveDailySession() {
     ownedUseBalls !== 0 ||
     outputUseBalls !== 0 ||
     getDailyHandBalls() > 0 ||
-    getDailyCashOnHand() > 0
+    getDailyCashOnHand() > 0 ||
+    lastFinalResult !== null
   );
 }
 
@@ -1229,39 +1316,124 @@ function checkDailyLogRollover() {
   saveSession();
 }
 
+function createSessionData() {
+  const sessionStore = getStoreNames().includes(selectedStore) ? selectedStore : "";
+  return {
+    machineId: selectedMachine.id,
+    savedAt: Date.now(),
+    spinLog,
+    pendingIndex,
+    nextStartCounter,
+    payoutConfirmIndex,
+    fixedPayoutEditIndex,
+    endBallsYame,
+    endBallsPending,
+    pendingHitHandData,
+    hasStarted,
+    investYen,
+    confirmedInvestYen,
+    ownedUseBalls,
+    confirmedOwnedBalls,
+    outputUseBalls,
+    confirmedOutputBalls,
+    playStartHandBalls,
+    investmentsSincePlayBoundary,
+    selectedStore: sessionStore,
+    playSource,
+    lastMidCheckBalls,
+    dailyHandBalls: getDailyHandBalls(),
+    dailyCashOnHand: getDailyCashOnHand(),
+    draftInputs: getSessionDraftInputs(),
+    lastFinalResult: normalizeFinalResult(lastFinalResult),
+  };
+}
+
+function sessionHasActivity(data) {
+  return Boolean(
+    data &&
+    (
+      (Array.isArray(data.spinLog) && data.spinLog.length > 0) ||
+      data.hasStarted ||
+      Number.isFinite(data.pendingIndex) && data.pendingIndex !== -1 ||
+      Number.isFinite(data.payoutConfirmIndex) && data.payoutConfirmIndex !== -1 ||
+      data.endBallsPending ||
+      data.pendingHitHandData ||
+      Number(data.confirmedInvestYen) > 0 ||
+      Number(data.confirmedOwnedBalls) > 0 ||
+      Number(data.confirmedOutputBalls) > 0 ||
+      Number(data.investYen) !== 0 ||
+      Number(data.ownedUseBalls) !== 0 ||
+      Number(data.outputUseBalls) !== 0 ||
+      Number(data.dailyHandBalls) > 0 ||
+      Number(data.dailyCashOnHand) > 0 ||
+      normalizeFinalResult(data.lastFinalResult) !== null
+    )
+  );
+}
+
+function parseSessionData(raw) {
+  if (!raw) return null;
+  try {
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== "object") return null;
+    if (!MACHINES.some((m) => m.id === data.machineId)) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function loadSessionSnapshots() {
+  try {
+    const snapshots = JSON.parse(localStorage.getItem(LS_SESSION_SNAPSHOTS) || "[]");
+    if (!Array.isArray(snapshots)) return [];
+    return snapshots
+      .filter((data) => data && typeof data === "object" && MACHINES.some((m) => m.id === data.machineId))
+      .sort((a, b) => (Number(b.savedAt) || 0) - (Number(a.savedAt) || 0));
+  } catch {
+    return [];
+  }
+}
+
+function saveSessionSnapshot(data) {
+  if (!sessionHasActivity(data)) return;
+
+  try {
+    const snapshots = loadSessionSnapshots()
+      .filter((item) => item.machineId !== data.machineId || item.savedAt !== data.savedAt);
+    snapshots.unshift(data);
+    localStorage.setItem(LS_SESSION_SNAPSHOTS, JSON.stringify(snapshots.slice(0, SESSION_SNAPSHOT_LIMIT)));
+  } catch (e) {
+    console.warn("saveSessionSnapshot failed:", e);
+  }
+}
+
+function clearSessionSnapshotsForMachine(machineId) {
+  try {
+    const snapshots = loadSessionSnapshots().filter((data) => data.machineId !== machineId);
+    if (snapshots.length) {
+      localStorage.setItem(LS_SESSION_SNAPSHOTS, JSON.stringify(snapshots));
+    } else {
+      localStorage.removeItem(LS_SESSION_SNAPSHOTS);
+    }
+  } catch {}
+}
+
+function getRecoverableSession(preferredMachineId, allowAnyMachine) {
+  const snapshots = loadSessionSnapshots().filter(sessionHasActivity);
+  return snapshots.find((data) => data.machineId === preferredMachineId) ||
+    (allowAnyMachine ? snapshots[0] : null);
+}
+
 function saveSession() {
   if (isSwitchingMachine) return;
   try {
     const key = getSessionKey(selectedMachine.id);
-    const sessionStore = getStoreNames().includes(selectedStore) ? selectedStore : "";
-    const data = {
-      machineId: selectedMachine.id,
-      savedAt: Date.now(),
-      spinLog,
-      pendingIndex,
-      nextStartCounter,
-      payoutConfirmIndex,
-      fixedPayoutEditIndex,
-      endBallsYame,
-      endBallsPending,
-      pendingHitHandData,
-      hasStarted,
-      investYen,
-      confirmedInvestYen,
-      ownedUseBalls,
-      confirmedOwnedBalls,
-      outputUseBalls,
-      confirmedOutputBalls,
-      playStartHandBalls,
-      investmentsSincePlayBoundary,
-      selectedStore: sessionStore,
-      playSource,
-      lastMidCheckBalls,
-      draftInputs: getSessionDraftInputs(),
-    };
+    const data = createSessionData();
     localStorage.setItem(LS_SELECTED_MACHINE, selectedMachine.id);
     localStorage.setItem(key, JSON.stringify(data));
     localStorage.setItem(LS_ACTIVE_SESSION, JSON.stringify(data));
+    saveSessionSnapshot(data);
   } catch (e) {
     console.warn("saveSession failed:", e);
   }
@@ -1286,15 +1458,23 @@ function queueSaveSession() {
 function loadSession(useActiveFallback = true) {
   try {
     const key = getSessionKey(selectedMachine.id);
-    let raw = localStorage.getItem(key);
-    let data = raw ? JSON.parse(raw) : null;
+    let data = parseSessionData(localStorage.getItem(key));
+    const active = parseSessionData(localStorage.getItem(LS_ACTIVE_SESSION));
 
-    if (!data && useActiveFallback) {
-      const activeRaw = localStorage.getItem(LS_ACTIVE_SESSION);
-      const active = activeRaw ? JSON.parse(activeRaw) : null;
-      const activeMachine = MACHINES.find((m) => m.id === active?.machineId);
-      if (!activeMachine) return false;
+    if (!data && active && (useActiveFallback || active.machineId === selectedMachine.id)) {
+      data = active;
+    }
 
+    if (!data) {
+      data = getRecoverableSession(selectedMachine.id, useActiveFallback);
+    }
+
+    if (!data) return false;
+
+    const activeMachine = MACHINES.find((m) => m.id === data.machineId);
+    if (!activeMachine) return false;
+
+    if (activeMachine.id !== selectedMachine.id) {
       selectedMachine = activeMachine;
       localStorage.setItem(LS_SELECTED_MACHINE, selectedMachine.id);
       const sel = $("machineSelect");
@@ -1302,9 +1482,7 @@ function loadSession(useActiveFallback = true) {
       setSelectedMachineDisplay();
       renderFavoriteButton();
       loadTotalsForSelectedMachine();
-      data = active;
     }
-    if (!data) return false;
 
     spinLog = Array.isArray(data.spinLog) ? data.spinLog : [];
     pendingIndex = Number.isFinite(data.pendingIndex) ? data.pendingIndex : -1;
@@ -1347,10 +1525,17 @@ function loadSession(useActiveFallback = true) {
 
     selectedStore = typeof data.selectedStore === "string" ? data.selectedStore : selectedStore;
     playSource = ["cash", "owned", "output"].includes(data.playSource) ? data.playSource : "cash";
+    if (Number.isFinite(data.dailyHandBalls)) {
+      setDailyHandBalls(data.dailyHandBalls);
+    }
+    if (Number.isFinite(data.dailyCashOnHand)) {
+      setDailyCashOnHand(data.dailyCashOnHand);
+    }
     renderStoreControls();
-    setPlaySource(playSource);
+    setPlaySource(playSource, false, false, true);
 
     lastMidCheckBalls = Number.isFinite(data.lastMidCheckBalls) ? data.lastMidCheckBalls : null;
+    lastFinalResult = normalizeFinalResult(data.lastFinalResult);
 
     const draft = data.draftInputs && typeof data.draftInputs === "object" ? data.draftInputs : {};
     restoreInputValue("counterNow", draft.counterNow);
@@ -1373,6 +1558,7 @@ function loadSession(useActiveFallback = true) {
 function clearSession() {
   try {
     localStorage.removeItem(getSessionKey(selectedMachine.id));
+    clearSessionSnapshotsForMachine(selectedMachine.id);
     const activeRaw = localStorage.getItem(LS_ACTIVE_SESSION);
     const active = activeRaw ? JSON.parse(activeRaw) : null;
     if (active?.machineId === selectedMachine.id) {
@@ -1943,10 +2129,7 @@ function confirmFixedPayoutAdjust() {
   }
 
   const disp = Math.floor(value);
-  const previousDisp = Math.floor(Number(row.payoutDisp) || 0);
-  const previousNet = Math.floor(Number(row.payout) || 0);
-  const payoutGap = Math.max(0, previousDisp - previousNet);
-  const net = Math.max(0, disp - payoutGap);
+  const net = calcNetFromFixedDisplayedPayout(disp);
   const previousAdded = Math.max(0, Math.floor(Number(row.handPayoutAdded) || 0));
   const delta = net - previousAdded;
 
@@ -2459,6 +2642,7 @@ if (exchangeSel) {
     const restored = loadSession(false);
     if (restored) {
       renderSpinLog();
+      renderFinalResultView();
       if (payoutConfirmIndex !== -1) $("payoutPanel")?.classList.remove("is-hidden");
       if (fixedPayoutEditIndex !== -1) $("fixedPayoutPanel")?.classList.remove("is-hidden");
       if (pendingHitHandData) $("hitHandPanel")?.classList.remove("is-hidden");
@@ -2632,19 +2816,38 @@ function revealInvestSourceBody() {
   const el = $("investSourceBody");
   if (!el) return;
 
-  el.classList.remove("is-revealing");
-  el.classList.add("is-updating");
+  if (investSourceRevealFrame !== null) {
+    cancelAnimationFrame(investSourceRevealFrame);
+    investSourceRevealFrame = null;
+  }
+  if (investSourceRevealCleanup) {
+    investSourceRevealCleanup();
+  }
+  if (investSourceRevealTimer !== null) {
+    clearTimeout(investSourceRevealTimer);
+    investSourceRevealTimer = null;
+  }
 
-  setTimeout(() => {
-    el.classList.remove("is-updating");
+  el.classList.remove("is-updating", "is-revealing");
+  void el.offsetWidth;
+
+  const cleanup = () => {
+    el.classList.remove("is-revealing");
+    el.removeEventListener("animationend", cleanup);
+    investSourceRevealCleanup = null;
+    if (investSourceRevealTimer !== null) {
+      clearTimeout(investSourceRevealTimer);
+      investSourceRevealTimer = null;
+    }
+  };
+
+  investSourceRevealFrame = requestAnimationFrame(() => {
+    investSourceRevealFrame = null;
+    investSourceRevealCleanup = cleanup;
+    el.addEventListener("animationend", cleanup);
     el.classList.add("is-revealing");
-
-    const onEnd = () => {
-      el.classList.remove("is-revealing");
-      el.removeEventListener("animationend", onEnd);
-    };
-    el.addEventListener("animationend", onEnd);
-  }, 90);
+    investSourceRevealTimer = setTimeout(cleanup, 700);
+  });
 }
 
 function renderPlaySourceControls(selectOutputInput = false) {
@@ -2672,11 +2875,13 @@ function renderPlaySourceControls(selectOutputInput = false) {
   renderConfirmedOutput();
 }
 
-function setPlaySource(source, selectOutputInput = false, animateBody = false) {
-  playSource = ["cash", "owned", "output"].includes(source) ? source : "cash";
+function setPlaySource(source, selectOutputInput = false, animateBody = false, skipSave = false) {
+  const nextSource = ["cash", "owned", "output"].includes(source) ? source : "cash";
+  const shouldAnimate = animateBody && playSource !== nextSource;
+  playSource = nextSource;
   renderPlaySourceControls(selectOutputInput);
-  if (animateBody) revealInvestSourceBody();
-  saveSession();
+  if (shouldAnimate) revealInvestSourceBody();
+  if (!skipSave) saveSession();
 }
 
 function selectPlaySourceFromTab(source, selectOutputInput = false) {
@@ -3567,8 +3772,19 @@ function getTotalSpinsFromLog() {
   return spinLog.reduce((a, x) => a + (Number(x.add) || 0), 0);
 }
 
+function getNetPayoutFromLogRow(row) {
+  if (!row) return 0;
+
+  const disp = Number(row.payoutDisp);
+  if (isFixedPayoutRow(row) && Number.isFinite(disp) && disp > 0) {
+    return calcNetFromFixedDisplayedPayout(disp);
+  }
+
+  return Number(row.payout) || 0;
+}
+
 function getTotalPayoutFromLog() {
-  return spinLog.reduce((sum, x) => sum + (Number(x.payout) || 0), 0);
+  return spinLog.reduce((sum, x) => sum + getNetPayoutFromLogRow(x), 0);
 }
 
 function getPlayInputsFromLog() {
@@ -3587,6 +3803,28 @@ function getEndDerivedOutputBallsFromLog() {
 function getSessionStartHandBalls() {
   const row = spinLog.find((item) => Number.isFinite(item?.startHandBalls));
   return Math.max(0, Math.floor(Number(row?.startHandBalls) || 0));
+}
+
+function getFinalCalcPreviewInputs() {
+  const inputs = getFinalCalcInvestInputs();
+  if (endBallsYame === null || !Number.isFinite(endBallsYame) || endBallsYame < 0) {
+    return inputs;
+  }
+
+  const payout = getTotalPayoutFromLog();
+  const sessionStartHandBalls = getSessionStartHandBalls();
+  const outputBallsUsedInput = Number(inputs.outputBalls) || 0;
+  const remainingCarriedHandBalls = outputBallsUsedInput > 0
+    ? Math.max(0, sessionStartHandBalls - outputBallsUsedInput)
+    : 0;
+  const sessionEndBalls = Math.max(0, endBallsYame - remainingCarriedHandBalls);
+  const endDerivedOutputBalls = getEndDerivedOutputBallsFromLog();
+  const outputUsedBalls = Math.max(0, payout - sessionEndBalls - endDerivedOutputBalls);
+
+  return {
+    ...inputs,
+    outputBalls: outputBallsUsedInput + outputUsedBalls,
+  };
 }
 
 function getActivePlayStartHandBalls() {
@@ -3723,48 +3961,16 @@ function calc() {
     saveTotalsForStoreMachine(selectedStore, selectedMachine.id, storeTotals);
   }
 
-  const finalEl = $("finalResult");
   const borderVal = getCurrentBorder();
   const diffBorder = trueBorder ?? borderVal;
-  const rateDiff = Number.isFinite(diffBorder) ? rotationRate - diffBorder : null;
-  const rateDiffText = rateDiff === null
-    ? ""
-    : ` (${rateDiff >= 0 ? "+" : ""}${fmtRate1(rateDiff)})`;
-  const rateDiffClass =
-    rateDiff === null || rateDiff === 0
-      ? ""
-      : rateDiff > 0
-        ? "is-plus"
-        : "is-minus";
-  if (finalEl) {
-    finalEl.innerHTML = "";
-
-    const ownedRatioLine = document.createElement("div");
-    ownedRatioLine.textContent = `持ち玉比率：${Math.round(ownedRatio * 100)}%`;
-    finalEl.appendChild(ownedRatioLine);
-
-    if (trueBorder !== null) {
-      const trueBorderLine = document.createElement("div");
-      trueBorderLine.textContent = `真ボーダー：${fmtRate1(trueBorder)} 回/k`;
-      finalEl.appendChild(trueBorderLine);
-    }
-
-    const rateLine = document.createElement("div");
-    rateLine.appendChild(document.createTextNode(`今回の回転率：${fmtRate1(rotationRate)} 回/k`));
-    if (rateDiffText) {
-      const diffSpan = document.createElement("span");
-      diffSpan.className = `rate-diff ${rateDiffClass}`;
-      diffSpan.textContent = rateDiffText;
-      rateLine.appendChild(diffSpan);
-    }
-    finalEl.appendChild(rateLine);
-
-    const evLine = document.createElement("div");
-    evLine.textContent = `今回の期待値：${todayYen >= 0 ? "+" : ""}${fmtInt(todayYen)}円`;
-    finalEl.appendChild(evLine);
-  }
-
-  updateFinalRateMeter(rotationRate, diffBorder);
+  lastFinalResult = {
+    ownedRatio,
+    trueBorder,
+    rotationRate,
+    diffBorder,
+    todayYen,
+  };
+  renderFinalResultView(lastFinalResult);
 
   hasStarted = false;
   updateStartButton();
@@ -3800,6 +4006,13 @@ function calcNetFromDisplayedPayout(disp) {
   const restNet = rest - used;
 
   return BASE_NET + restNet;
+}
+
+function calcNetFromFixedDisplayedPayout(disp) {
+  const v = Math.floor(Number(disp));
+  if (!Number.isFinite(v) || v <= 0) return 0;
+
+  return Math.max(0, v - Math.floor(v / 15));
 }
 
 function resetAllMachineTotals() {
@@ -4497,11 +4710,12 @@ function init() {
     saveStoreExchange(selectedStore, selectedExchange);
   }
   renderStoreControls();
-  setPlaySource(playSource);
+  setPlaySource(playSource, false, false, true);
 
   const restored = loadSession();
   if (restored) {
     renderSpinLog();
+    renderFinalResultView();
     if (payoutConfirmIndex !== -1) $("payoutPanel")?.classList.remove("is-hidden");
     if (fixedPayoutEditIndex !== -1) $("fixedPayoutPanel")?.classList.remove("is-hidden");
     if (pendingHitHandData) $("hitHandPanel")?.classList.remove("is-hidden");
@@ -4547,7 +4761,9 @@ function init() {
     animateProgressBar(goalBar, Number(goalBar.dataset.targetValue) || 0, 650);
   }
 
-  saveSession();
+  if (restored || hasActiveDailySession()) {
+    saveSession();
+  }
 
   if (navigator.storage?.persist) {
     navigator.storage.persist().catch(() => {});
