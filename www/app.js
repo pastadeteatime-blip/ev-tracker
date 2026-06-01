@@ -157,6 +157,28 @@ function initClearableInputs() {
   });
 }
 
+function prepareClearableNumberInput(id, selectValue = true) {
+  const input = $(id);
+  if (!input) return;
+
+  input.value = "0";
+  updateClearButtonForInput(input);
+
+  if (!selectValue) return;
+  requestAnimationFrame(() => {
+    input.focus();
+    input.select?.();
+  });
+}
+
+function prepareEndBallsInput(selectValue = true) {
+  prepareClearableNumberInput("endBallsNow", selectValue);
+}
+
+function prepareMidBallsInput(selectValue = true) {
+  prepareClearableNumberInput("midBallsNow", selectValue);
+}
+
 function renderAppVersion() {
   const version = window.APP_VERSION || "";
   const versionEl = document.querySelector(".app-version");
@@ -1543,6 +1565,9 @@ function loadSession(useActiveFallback = true) {
     restoreInputValue("fixedPayoutNow", draft.fixedPayoutNow);
     restoreInputValue("hitHandNow", draft.hitHandNow);
     restoreInputValue("endBallsNow", draft.endBallsNow);
+    if (endBallsPending && getInputValue("endBallsNow") === "") {
+      prepareEndBallsInput(false);
+    }
     restoreInputValue("midBallsNow", draft.midBallsNow);
     restoreInputValue("investYen", draft.investYen);
     restoreInputValue("ownedUseBalls", draft.ownedUseBalls);
@@ -2482,10 +2507,8 @@ function addStopEvent() {
 
   endBallsPending = true;
 
-  if ($("endBallsNow")) {
-    $("endBallsNow").value = "";
-  }
   $("endBallsPanel")?.classList.remove("is-hidden");
+  prepareEndBallsInput();
 
   renderSpinLog();
   setLogMode("main");
@@ -2646,7 +2669,10 @@ if (exchangeSel) {
       if (payoutConfirmIndex !== -1) $("payoutPanel")?.classList.remove("is-hidden");
       if (fixedPayoutEditIndex !== -1) $("fixedPayoutPanel")?.classList.remove("is-hidden");
       if (pendingHitHandData) $("hitHandPanel")?.classList.remove("is-hidden");
-      if (endBallsPending) $("endBallsPanel")?.classList.remove("is-hidden");
+      if (endBallsPending) {
+        $("endBallsPanel")?.classList.remove("is-hidden");
+        if (getInputValue("endBallsNow") === "") prepareEndBallsInput(false);
+      }
       setLogMode(pendingIndex !== -1 ? "afterHit" : "main");
       updateStartButton();
     } else {
@@ -4274,10 +4300,7 @@ function showMidCheck() {
   if (currentHand > 0) {
     inputWrap?.classList.remove("is-hidden");
     btn?.classList.remove("is-hidden");
-    if ($("midBallsNow")) {
-      $("midBallsNow").value = "";
-      $("midBallsNow").focus();
-    }
+    prepareMidBallsInput();
     return;
   }
 
@@ -4288,6 +4311,8 @@ function showMidCheck() {
 
 function confirmMidCheck(forcedEndBalls = null) {
   let tempEndBalls = forcedEndBalls;
+  const inputWrap = $("midBallsNow")?.closest("label");
+  const btn = $("midBallsConfirm");
 
   if (tempEndBalls === null && getDailyHandBalls() > 0) {
     const value = Number($("midBallsNow")?.value);
@@ -4299,6 +4324,8 @@ function confirmMidCheck(forcedEndBalls = null) {
   }
 
   tempEndBalls = Math.max(0, Math.floor(Number(tempEndBalls) || 0));
+  inputWrap?.classList.add("is-hidden");
+  btn?.classList.add("is-hidden");
 
   lastMidCheckBalls = tempEndBalls;
 
@@ -4719,7 +4746,10 @@ function init() {
     if (payoutConfirmIndex !== -1) $("payoutPanel")?.classList.remove("is-hidden");
     if (fixedPayoutEditIndex !== -1) $("fixedPayoutPanel")?.classList.remove("is-hidden");
     if (pendingHitHandData) $("hitHandPanel")?.classList.remove("is-hidden");
-    if (endBallsPending) $("endBallsPanel")?.classList.remove("is-hidden");
+    if (endBallsPending) {
+      $("endBallsPanel")?.classList.remove("is-hidden");
+      if (getInputValue("endBallsNow") === "") prepareEndBallsInput(false);
+    }
     setLogMode(pendingIndex !== -1 ? "afterHit" : "main");
   } else {
     resetSpinLog();
