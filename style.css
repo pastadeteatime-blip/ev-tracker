@@ -578,7 +578,7 @@ progress::-webkit-progress-value{
 
 .machine-picker-tabs{
   display: grid;
-  grid-template-columns: 0.78fr 1.16fr 0.72fr 1fr 0.8fr;
+  grid-template-columns: 0.72fr 0.72fr 1fr 1.14fr 0.72fr;
   gap: 8px;
 }
 
@@ -873,6 +873,11 @@ progress::-webkit-progress-value{
 
 .log-actions button{
   width: 100%;
+}
+
+.log-actions-after button{
+  white-space: pre-line;
+  line-height: 1.15;
 }
 
 .is-disabled{

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>&#26399;&#24453;&#20516;&#12488;&#12521;&#12483;&#12459;&#12540;</title>
 
-  <link rel="stylesheet" href="style.css?v=47" />
+  <link rel="stylesheet" href="style.css?v=49" />
   <link rel="manifest" href="./manifest.webmanifest">
 
   <!-- iOS / Web App Icons -->
@@ -137,6 +137,7 @@
           <div class="log-actions-after is-hidden" id="logActionsAfter">
   <button type="button" class="chip state" id="btnCharge">&#12481;&#12515;&#12540;&#12472;</button>
   <button type="button" class="chip state" id="btnTan">&#21336;&#30330;</button>
+  <button type="button" class="chip state" id="btnCzEnd">CZ&#32066;&#20102;</button>
   <button type="button" class="chip state" id="btnRushEnd">RUSH&#32066;&#20102;</button>
   <button type="button" class="chip state" id="btnLtEnd">LT&#32066;&#20102;</button>
   <button type="button" class="chip undo" id="btnUndo2">&#25147;&#12377;</button>
@@ -369,10 +370,10 @@
     </div>
     <div class="machine-picker-tabs" role="tablist" aria-label="&#27231;&#31278;&#12459;&#12486;&#12468;&#12522;">
       <button type="button" class="machine-picker-tab is-active" data-machine-filter="all">&#12377;&#12409;&#12390;</button>
+      <button type="button" class="machine-picker-tab" data-machine-filter="recent">&#26368;&#36817;</button>
+      <button type="button" class="machine-picker-tab" data-machine-filter="favorite">&#12362;&#27671;&#12395;&#20837;&#12426;</button>
       <button type="button" class="machine-picker-tab" data-machine-filter="storeGood">&#12508;&#12540;&#12480;&#12540;&#36229;&#12360;</button>
       <button type="button" class="machine-picker-tab" data-machine-filter="storeBad">&#21361;&#38522;</button>
-      <button type="button" class="machine-picker-tab" data-machine-filter="favorite">&#12362;&#27671;&#12395;&#20837;&#12426;</button>
-      <button type="button" class="machine-picker-tab" data-machine-filter="recent">&#26368;&#36817;</button>
     </div>
     <div id="machinePickerList" class="machine-picker-list"></div>
   </section>
@@ -432,8 +433,8 @@
 
   <script src="./affiliate-links.js?v=28"></script>
   <script src="./app-meta.js?v=43"></script>
-  <script src="./machines.js?v=45"></script>
-  <script src="./app.js?v=63"></script>
+  <script src="./machines.js?v=50"></script>
+  <script src="./app.js?v=86"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
