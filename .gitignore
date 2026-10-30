@@ -4,3 +4,5 @@ ios/App/App/public/
 DerivedData/
 .DS_Store
 npm-debug.log*
+.tools/
+.video_work/

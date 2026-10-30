@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>&#26399;&#24453;&#20516;&#12488;&#12521;&#12483;&#12459;&#12540;</title>
 
-  <link rel="stylesheet" href="style.css?v=49" />
+  <link rel="stylesheet" href="style.css?v=95" />
   <link rel="manifest" href="./manifest.webmanifest">
 
   <!-- iOS / Web App Icons -->
-  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icon-180.png?v=28">
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png?v=28">
-  <link rel="icon" type="image/png" sizes="512x512" href="./assets/icon-512.png?v=28">
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icon-180.png?v=29">
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png?v=29">
+  <link rel="icon" type="image/png" sizes="512x512" href="./assets/icon-512.png?v=29">
 
   <!-- iOS Web App -->
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -24,7 +24,7 @@
   <!-- logo -->
   <h1 class="logo" aria-label="&#26399;&#24453;&#20516;&#12488;&#12521;&#12483;&#12459;&#12540;">
     <img
-      src="./assets/logo-ev-tracker.png"
+      src="./assets/logo-ev-tracker.png?v=30"
       alt="&#26399;&#24453;&#20516;&#12488;&#12521;&#12483;&#12459;&#12540;"
       class="app-logo"
       decoding="async"
@@ -34,6 +34,59 @@
   <p class="app-version">Version ...</p>
 
   <main class="container">
+
+    <section class="card calendar-card" id="calendarCard" aria-label="&#26399;&#24453;&#20516;&#12459;&#12524;&#12531;&#12480;&#12540;">
+      <header class="calendar-header">
+        <button type="button" id="calendarPrevMonth" class="calendar-month-button" aria-label="&#21069;&#12398;&#26376;">&#8249;</button>
+        <div>
+          <h2 id="calendarMonthTitle">&#8212;</h2>
+          <p aria-hidden="true"></p>
+        </div>
+        <button type="button" id="calendarNextMonth" class="calendar-month-button" aria-label="&#27425;&#12398;&#26376;">&#8250;</button>
+      </header>
+
+      <div id="calendarMonthContent" class="calendar-month-content">
+      <div class="calendar-summary">
+        <div>
+          <span>&#26376;&#38291;&#26399;&#24453;&#20516;</span>
+          <strong id="calendarMonthExpected">&#8212;</strong>
+        </div>
+        <div>
+          <span>&#23455;&#21454;&#25903;</span>
+          <strong id="calendarMonthActual">&#8212;</strong>
+        </div>
+        <div>
+          <span>&#24046;</span>
+          <strong id="calendarMonthDifference">&#8212;</strong>
+        </div>
+      </div>
+
+      <div class="calendar-weekdays" aria-hidden="true">
+        <span>&#26085;</span><span>&#26376;</span><span>&#28779;</span><span>&#27700;</span>
+        <span>&#26408;</span><span>&#37329;</span><span>&#22303;</span>
+      </div>
+      <div id="calendarGrid" class="calendar-grid"></div>
+
+      <section class="calendar-day-detail" aria-labelledby="calendarSelectedDate">
+        <h3 id="calendarSelectedDate">&#26085;&#20184;&#12434;&#36984;&#25246;</h3>
+        <div id="calendarDayEntries" class="calendar-day-entries">
+          <p class="calendar-empty">&#35352;&#37682;&#12364;&#12354;&#12426;&#12414;&#12379;&#12435;</p>
+        </div>
+        <div class="calendar-actual-editor">
+          <div>
+            <label for="calendarActualInput">&#23455;&#21454;&#25903;&#35519;&#25972;</label>
+            <span>&#20132;&#25563;&#12462;&#12515;&#12483;&#12503;&#12394;&#12393;&#12434;&#12510;&#12452;&#12490;&#12473;&#20837;&#21147;</span>
+          </div>
+          <div class="calendar-actual-editor__controls">
+            <button type="button" id="calendarActualMinus" class="calendar-actual-minus" aria-pressed="false" aria-label="マイナス入力に切り替え">&minus;</button>
+            <input type="number" id="calendarActualInput" inputmode="numeric" step="1" placeholder="例：-12500" />
+            <button type="button" id="calendarActualDelete" class="calendar-actual-delete">&#21066;&#38500;</button>
+            <button type="button" id="calendarActualSave">&#20445;&#23384;</button>
+          </div>
+        </div>
+      </section>
+      </div>
+    </section>
 
     <!-- machine selection and store info -->
     <section class="card" aria-label="&#27231;&#31278;&#24773;&#22577;">
@@ -90,11 +143,13 @@
           <div class="owned-summary">
             <div class="owned-values">
               <strong id="dailyCashOnHand">&#20837;&#24215;&#26178;&#25152;&#25345;&#37329;&#65306;----</strong>
+              <strong id="atmWithdrawal">&#65;&#84;&#77;&#12391;&#19979;&#12429;&#12375;&#12383;&#37329;&#38989;&#65306;----</strong>
               <strong id="ownedBalance">&#36015;&#29577;&#65306;0&#29577;</strong>
               <span id="currentHandBalls" class="current-hand-balls">&#25345;&#12385;&#29577;&#65306;----</span>
             </div>
             <div class="owned-edit">
               <button type="button" id="dailyCashSaveBtn" class="chip neutral">&#20837;&#24215;&#26178;&#25152;&#25345;&#37329;&#12434;&#20837;&#21147;</button>
+              <button type="button" id="atmWithdrawalSaveBtn" class="chip neutral">&#65;&#84;&#77;&#12391;&#19979;&#12429;&#12375;&#12383;&#37329;&#38989;&#12434;&#20837;&#21147;</button>
               <button type="button" id="ownedBalanceSaveBtn" class="chip neutral">&#36015;&#29577;&#12434;&#26356;&#26032;</button>
             </div>
           </div>
@@ -265,7 +320,7 @@
     <!-- expectation calculation -->
     <section class="card" id="finalCalcCard">
       <div id="finalCalcPreview" class="final-calc-preview is-hidden" aria-live="polite"></div>
-      <button type="button" id="finalCalcBtn">&#26399;&#24453;&#20516;&#35336;&#31639;</button>
+      <button type="button" id="finalCalcBtn"><span>&#26399;&#24453;&#20516;&#35336;&#31639;</span></button>
 
       <p id="finalResult" class="final-result" aria-live="polite"></p>
 
@@ -326,23 +381,33 @@
       </div>
     </section>
 
-    <section class="affiliate-links is-hidden" id="affiliateCard" aria-label="&#38306;&#36899;&#12522;&#12531;&#12463;">
-      <div class="affiliate-links__header">
-        <h2>&#38306;&#36899;&#12522;&#12531;&#12463;</h2>
-        <span>PR&#12434;&#21547;&#12416;&#22580;&#21512;&#12364;&#12354;&#12426;&#12414;&#12377;</span>
-      </div>
-      <div class="affiliate-links__list" id="affiliateLinksList"></div>
+    <section class="display-options-entry" id="displayOptionsEntry" aria-label="表示設定">
+      <button type="button" id="displayOptionsOpen" class="display-options-open">
+        <span class="display-options-open__icon" aria-hidden="true">&#9881;</span>
+        <span>表示オプション</span>
+      </button>
     </section>
 
   </main>
 
+  <footer class="affiliate-links is-hidden" id="affiliateCard" aria-label="&#38306;&#36899;&#12522;&#12531;&#12463;">
+    <div class="affiliate-links__header">
+      <h2>PR&#65372;&#38306;&#36899;&#12469;&#12540;&#12499;&#12473;</h2>
+      <span>&#12450;&#12501;&#12451;&#12522;&#12456;&#12452;&#12488;&#24195;&#21578;</span>
+    </div>
+    <div class="affiliate-links__list" id="affiliateLinksList"></div>
+  </footer>
+
   <!-- scripts: machines -> app -->
   <nav class="bottom-tabs" aria-label="&#23455;&#32318;&#34920;&#31034;&#20999;&#12426;&#26367;&#12360;">
     <button type="button" id="totalTabAll" class="bottom-tab">
-      &#20840;&#27231;&#31278;
+      &#24180;&#38291;&#21454;&#25903;
     </button>
     <button type="button" id="totalTabSelected" class="bottom-tab is-active">
-      &#36984;&#25246;&#27231;&#31278;
+      &#12525;&#12464;
+    </button>
+    <button type="button" id="totalTabCalendar" class="bottom-tab">
+      &#12459;&#12524;&#12531;&#12480;&#12540;
     </button>
   </nav>
 
@@ -358,6 +423,10 @@
       <h2>&#27231;&#31278;&#12434;&#36984;&#25246;</h2>
       <button type="button" id="machinePickerClose" class="machine-picker-close" aria-label="&#38281;&#12376;&#12427;">&times;</button>
     </div>
+    <p class="machine-picker-note">
+      &#8251;&#30906;&#29575;&#12399;&#12377;&#12409;&#12390;&#22259;&#26564;&#25539;&#12356;&#30906;&#29575;&#12434;&#34920;&#35352;<br>
+      &#8251;&#12508;&#12540;&#12480;&#12540;&#12399;&#36984;&#25246;&#20013;&#12398;&#20132;&#25563;&#29575;&#12434;&#34920;&#35352;
+    </p>
     <div class="clearable-input picker-search-wrap">
       <input
         type="search"
@@ -404,6 +473,55 @@
   </section>
 
   <div id="appToast" class="app-toast is-hidden" role="status" aria-live="polite"></div>
+  <div id="displayOptionsOverlay" class="display-options-overlay is-hidden" aria-hidden="true"></div>
+  <section
+    id="displayOptionsModal"
+    class="display-options-modal is-hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="displayOptionsTitle"
+  >
+    <div class="display-options-header">
+      <div>
+        <p class="display-options-kicker"><span aria-hidden="true">&#9881;</span> 表示設定</p>
+        <h2 id="displayOptionsTitle">表示オプション</h2>
+      </div>
+      <button type="button" id="displayOptionsClose" class="display-options-close" aria-label="閉じる">&times;</button>
+    </div>
+
+    <div class="display-options-group">
+      <h3>店舗カード</h3>
+      <label class="display-option-row">
+        <span>入店時所持金</span>
+        <input type="checkbox" data-display-option="showDailyCash" />
+        <span class="display-option-switch" aria-hidden="true"></span>
+      </label>
+      <label class="display-option-row">
+        <span>ATMで下ろした金額</span>
+        <input type="checkbox" data-display-option="showAtmWithdrawal" />
+        <span class="display-option-switch" aria-hidden="true"></span>
+      </label>
+    </div>
+
+    <div class="display-options-group">
+      <h3>選択機種累計カード</h3>
+      <label class="display-option-row">
+        <span>目標期待値</span>
+        <input type="checkbox" data-display-option="showGoalTarget" />
+        <span class="display-option-switch" aria-hidden="true"></span>
+      </label>
+      <label class="display-option-row">
+        <span>達成率</span>
+        <input type="checkbox" data-display-option="showGoalRate" />
+        <span class="display-option-switch" aria-hidden="true"></span>
+      </label>
+      <label class="display-option-row">
+        <span>達成率バー</span>
+        <input type="checkbox" data-display-option="showGoalBar" />
+        <span class="display-option-switch" aria-hidden="true"></span>
+      </label>
+    </div>
+  </section>
   <div id="appDialogOverlay" class="app-dialog-overlay is-hidden" aria-hidden="true"></div>
   <section
     id="appDialog"
@@ -431,10 +549,10 @@
     <button type="button" id="appDialogOk" class="chip state">OK</button>
   </section>
 
-  <script src="./affiliate-links.js?v=28"></script>
-  <script src="./app-meta.js?v=43"></script>
-  <script src="./machines.js?v=50"></script>
-  <script src="./app.js?v=86"></script>
+  <script src="./affiliate-links.js?v=30"></script>
+  <script src="./app-meta.js?v=44"></script>
+  <script src="./machines.js?v=57"></script>
+  <script src="./app.js?v=125"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {

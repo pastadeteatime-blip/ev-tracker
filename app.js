@@ -1,6 +1,7 @@
 const GOAL_YEN = 1_000_000;
 const YEN_PER_BALL = 4;
 const DEFAULT_COST_PER_1K_BALLS = 250;
+const AFFILIATE_ENABLED = true;
 
 const TAN_PAYOUT_DISP = 400;
 const TAN_PAYOUT_NET  = 360;
@@ -22,6 +23,11 @@ const LS_TOTAL_VIEW_MODE = "evTracker_totalViewMode_v1";
 const LS_DAILY_LOG_DATE = "evTracker_dailyLogDate_v1";
 const LS_DAILY_HAND_BALLS = "evTracker_dailyHandBalls_v1";
 const LS_DAILY_CASH_ON_HAND = "evTracker_dailyCashOnHand_v1";
+const LS_DAILY_ATM_WITHDRAWAL = "evTracker_dailyAtmWithdrawal_v1";
+const LS_DISPLAY_OPTIONS = "evTracker_displayOptions_v1";
+const LS_CALENDAR_ENTRIES = "evTracker_calendarEntries_v1";
+const LS_CALENDAR_ACTUALS = "evTracker_calendarActuals_v1";
+const LS_CALENDAR_ACTUAL_ADJUSTMENTS = "evTracker_calendarActualAdjustments_v1";
 const LS_ACTIVE_SESSION = "evTracker_activeSession_v1";
 const LS_SESSION_SNAPSHOTS = "evTracker_sessionSnapshots_v1";
 const BACKUP_APP_ID = "ev-tracker";
@@ -42,7 +48,9 @@ let currentGoalIndex = 0;
 let selectedExchange = 28;
 let selectedStore = "";
 let playSource = "cash";
-let totalViewMode = localStorage.getItem(LS_TOTAL_VIEW_MODE) === "all" ? "all" : "selected";
+let totalViewMode = ["all", "selected", "calendar"].includes(localStorage.getItem(LS_TOTAL_VIEW_MODE))
+  ? localStorage.getItem(LS_TOTAL_VIEW_MODE)
+  : "selected";
 let isAddingStore = false;
 let appDialogMode = null;
 let pendingRestartOutcomeType = null;
@@ -107,6 +115,9 @@ let toastTimer = null;
 let appDialogCloseHandler = null;
 let machinePickerScrollTop = 0;
 let totalViewReturnY = null;
+let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let calendarSelectedDate = getTodayStamp();
+let allResultsYear = new Date().getFullYear();
 let saveSessionTimer = null;
 let investSourceRevealFrame = null;
 let investSourceRevealCleanup = null;
@@ -115,6 +126,67 @@ let lastFinalResult = null;
 
 function $(id) {
   return document.getElementById(id);
+}
+
+const DEFAULT_DISPLAY_OPTIONS = Object.freeze({
+  showDailyCash: true,
+  showAtmWithdrawal: true,
+  showGoalTarget: true,
+  showGoalRate: true,
+  showGoalBar: true,
+});
+
+function loadDisplayOptions() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_DISPLAY_OPTIONS) || "{}");
+    return Object.fromEntries(
+      Object.entries(DEFAULT_DISPLAY_OPTIONS).map(([key, defaultValue]) => [
+        key,
+        typeof saved[key] === "boolean" ? saved[key] : defaultValue,
+      ]),
+    );
+  } catch {
+    return { ...DEFAULT_DISPLAY_OPTIONS };
+  }
+}
+
+let displayOptions = loadDisplayOptions();
+
+function syncDisplayOptionControls() {
+  document.querySelectorAll("[data-display-option]").forEach((input) => {
+    input.checked = displayOptions[input.dataset.displayOption] !== false;
+  });
+}
+
+function applyDisplayOptions({ rerenderTotals = true } = {}) {
+  $("dailyCashOnHand")?.classList.toggle("is-hidden", !displayOptions.showDailyCash);
+  $("dailyCashSaveBtn")?.classList.toggle("is-hidden", !displayOptions.showDailyCash);
+  $("atmWithdrawal")?.classList.toggle("is-hidden", !displayOptions.showAtmWithdrawal);
+  $("atmWithdrawalSaveBtn")?.classList.toggle("is-hidden", !displayOptions.showAtmWithdrawal);
+  syncDisplayOptionControls();
+  if (rerenderTotals) renderMachineTotalCards();
+}
+
+function saveDisplayOption(key, enabled) {
+  if (!(key in DEFAULT_DISPLAY_OPTIONS)) return;
+  displayOptions = { ...displayOptions, [key]: Boolean(enabled) };
+  localStorage.setItem(LS_DISPLAY_OPTIONS, JSON.stringify(displayOptions));
+  applyDisplayOptions();
+}
+
+function openDisplayOptions() {
+  syncDisplayOptionControls();
+  $("displayOptionsOverlay")?.classList.remove("is-hidden");
+  $("displayOptionsModal")?.classList.remove("is-hidden");
+  $("displayOptionsOverlay")?.setAttribute("aria-hidden", "false");
+  document.body.classList.add("has-open-modal");
+}
+
+function closeDisplayOptions() {
+  $("displayOptionsOverlay")?.classList.add("is-hidden");
+  $("displayOptionsModal")?.classList.add("is-hidden");
+  $("displayOptionsOverlay")?.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("has-open-modal");
 }
 
 function getInputValue(id) {
@@ -230,17 +302,7 @@ function renderAppVersion() {
   const version = window.APP_VERSION || "";
   const versionEl = document.querySelector(".app-version");
   if (!versionEl || !version) return;
-
-  const appScript = document.querySelector('script[src*="app.js"]');
-  const cacheVersion = appScript
-    ? new URL(appScript.getAttribute("src"), window.location.href).searchParams.get("v")
-    : "";
-  const baseVersion = version.split(".").slice(0, 2).join(".");
-  const displayVersion = cacheVersion && /^\d+$/.test(cacheVersion)
-    ? `${baseVersion}.${cacheVersion}`
-    : version;
-
-  versionEl.textContent = `Version ${displayVersion}`;
+  versionEl.textContent = `Version ${version}`;
 }
 
 
@@ -407,6 +469,49 @@ function showDailyCashInputDialog() {
   input.select();
 }
 
+function showAtmWithdrawalInputDialog() {
+  const overlay = $("appDialogOverlay");
+  const dialog = $("appDialog");
+  const titleEl = $("appDialogTitle");
+  const messageEl = $("appDialogMessage");
+  const form = $("appDialogForm");
+  const label = $("appDialogInputLabel");
+  const input = $("appDialogInput");
+  const okBtn = $("appDialogOk");
+  const saveBtn = $("appDialogSave");
+
+  if (!overlay || !dialog || !titleEl || !messageEl || !form || !input || !okBtn) return;
+
+  appDialogMode = "atmWithdrawal";
+  titleEl.textContent = "ATMで下ろした金額を入力";
+  messageEl.textContent = "ATMで下ろした金額を記録します（各種計算には含まれません）";
+  if (label) label.textContent = "ATMで下ろした金額";
+  input.type = "number";
+  input.inputMode = "numeric";
+  input.min = "0";
+  input.step = "1000";
+  input.value = String(getDailyAtmWithdrawal());
+  updateClearButtonForInput(input);
+  if (saveBtn) saveBtn.textContent = "更新";
+  form.classList.remove("is-hidden");
+  okBtn.classList.add("is-hidden");
+
+  overlay.classList.remove("is-hidden");
+  overlay.setAttribute("aria-hidden", "false");
+  dialog.classList.remove("is-hidden");
+
+  if (appDialogCloseHandler) {
+    document.removeEventListener("keydown", appDialogCloseHandler);
+  }
+  appDialogCloseHandler = (event) => {
+    if (event.key === "Escape") hideAppDialog();
+  };
+  document.addEventListener("keydown", appDialogCloseHandler);
+
+  input.focus();
+  input.select();
+}
+
 function showStoreAddDialog() {
   const overlay = $("appDialogOverlay");
   const dialog = $("appDialog");
@@ -511,6 +616,11 @@ function confirmAppDialogForm() {
     return;
   }
 
+  if (appDialogMode === "atmWithdrawal") {
+    confirmAtmWithdrawalDialog();
+    return;
+  }
+
   if (appDialogMode === "restartCounter") {
     confirmRestartCounterDialog();
     return;
@@ -557,6 +667,22 @@ function confirmDailyCashDialog() {
   showAppDialog("入店時所持金を更新しました", `${fmtInt(value)}円に更新しました`);
 }
 
+function confirmAtmWithdrawalDialog() {
+  const input = $("appDialogInput");
+  const value = Number(input?.value);
+  if (!Number.isFinite(value) || value < 0) {
+    const messageEl = $("appDialogMessage");
+    if (messageEl) messageEl.textContent = "ATMで下ろした金額を0以上の数値で入力してください";
+    input?.focus();
+    return;
+  }
+
+  setDailyAtmWithdrawal(value);
+  saveSession();
+  renderOwnedBalance();
+  showAppDialog("ATMで下ろした金額を更新しました", `${fmtInt(value)}円に更新しました`);
+}
+
 function confirmRestartCounterDialog() {
   const type = pendingRestartOutcomeType;
   const input = $("appDialogInput");
@@ -595,6 +721,13 @@ function setSignedColor(el, val) {
 function setText(id, text) {
   const el = $(id);
   if (el) el.textContent = text;
+}
+
+function setActualSignedColor(el, val) {
+  if (!el) return;
+  if (val > 0) el.style.color = "#16803c";
+  else if (val < 0) el.style.color = "#dc2626";
+  else el.style.color = "";
 }
 
 function clearFinalResult() {
@@ -694,6 +827,40 @@ function getFinalCalcInvestInputs(rows = getUncalculatedRows()) {
   };
 }
 
+function getConsumedPlayInputs(rows, inputs, endBalls = getConfirmedEndBallsFromRows(rows)) {
+  const sourceRows = Array.isArray(rows) ? rows : [];
+  const cashInvestBalls = Math.max(0, (Number(inputs?.investK) || 0) * 250);
+  const ownedBalls = Math.max(0, Number(inputs?.ownedBalls) || 0);
+  const recordedOutputBalls = Math.max(0, Number(inputs?.outputBalls) || 0);
+  const startHandBalls = Math.max(0, Math.floor(Number(
+    sourceRows.find((row) => Number.isFinite(Number(row?.startHandBalls)))?.startHandBalls
+  ) || 0));
+  const payoutBalls = sourceRows.reduce((sum, row) => sum + getNetPayoutFromLogRow(row), 0);
+  const suppliedBalls = startHandBalls + cashInvestBalls + ownedBalls + payoutBalls;
+  const consumedBalls = endBalls === null
+    ? cashInvestBalls + ownedBalls + recordedOutputBalls
+    : Math.max(0, suppliedBalls - Math.max(0, Number(endBalls) || 0));
+
+  // 消費元は現金貸玉 → 貯玉 → 既存持ち玉・大当たり出玉の順で配分する。
+  // 終了持ち玉が確定している場合は、手入力された使用玉数より収支保存を優先する。
+  const consumedCashBalls = Math.min(cashInvestBalls, consumedBalls);
+  const afterCash = Math.max(0, consumedBalls - consumedCashBalls);
+  const consumedOwnedBalls = Math.min(ownedBalls, afterCash);
+  const consumedOutputBalls = Math.max(0, afterCash - consumedOwnedBalls);
+  const unspentInputBalls = Math.max(0,
+    cashInvestBalls + ownedBalls + recordedOutputBalls - consumedBalls
+  );
+
+  return {
+    cashInvestBalls: consumedCashBalls,
+    investK: consumedCashBalls / 250,
+    ownedBalls: consumedOwnedBalls,
+    outputBalls: consumedOutputBalls,
+    consumedBalls,
+    unspentInputBalls,
+  };
+}
+
 function formatFinalCalcFormula({ spinCount, investK, ownedBalls, outputBalls }) {
   const terms = [];
   if (Number.isFinite(investK) && investK !== 0) terms.push(`現金${fmtRate1(investK)}k`);
@@ -711,9 +878,12 @@ function renderFinalCalcPreview() {
   const spinCount = getTotalSpinsFromRows(calcRows);
   const hasConfirmedStop = hasConfirmedStopInRows(calcRows);
   const hasBlockingPending = payoutConfirmIndex !== -1 || endBallsPending;
+  const consumedInputs = getConsumedPlayInputs(calcRows, getFinalCalcInvestInputs(calcRows));
   const formula = formatFinalCalcFormula({
     spinCount,
-    ...getFinalCalcInvestInputs(calcRows),
+    investK: consumedInputs.investK,
+    ownedBalls: consumedInputs.ownedBalls,
+    outputBalls: consumedInputs.outputBalls,
   });
 
   if (spinCount <= 0 || !hasConfirmedStop || hasBlockingPending || !formula) {
@@ -751,9 +921,25 @@ function setDailyCashOnHand(value) {
   return yen;
 }
 
+function getDailyAtmWithdrawal() {
+  return Math.max(0, Math.floor(Number(localStorage.getItem(LS_DAILY_ATM_WITHDRAWAL)) || 0));
+}
+
+function setDailyAtmWithdrawal(value) {
+  const yen = Math.max(0, Math.floor(Number(value) || 0));
+  localStorage.setItem(LS_DAILY_ATM_WITHDRAWAL, String(yen));
+  renderOwnedBalance();
+  return yen;
+}
+
 function renderAffiliateLinks() {
   const card = $("affiliateCard");
   const list = $("affiliateLinksList");
+  document.body.classList.toggle("affiliate-disabled", !AFFILIATE_ENABLED);
+  card?.classList.add("is-hidden");
+  list?.replaceChildren();
+  if (!AFFILIATE_ENABLED) return;
+
   const links = Array.isArray(window.AFFILIATE_LINKS) ? window.AFFILIATE_LINKS : [];
   if (!card || !list || links.length === 0) return;
 
@@ -776,7 +962,24 @@ function renderAffiliateLinks() {
     item.className = "affiliate-link";
     item.href = link.url;
     item.target = "_blank";
-    item.rel = "sponsored noopener";
+    item.rel = "sponsored nofollow noopener";
+
+    if (link.imageUrl) {
+      try {
+        const imageUrl = new URL(link.imageUrl);
+        if (["http:", "https:"].includes(imageUrl.protocol)) {
+          const image = document.createElement("img");
+          image.className = "affiliate-link__image";
+          image.src = imageUrl.href;
+          image.alt = link.title;
+          image.width = Math.max(1, Math.min(300, Number(link.imageWidth) || 100));
+          image.height = Math.max(1, Math.min(300, Number(link.imageHeight) || 100));
+          image.loading = "lazy";
+          item.classList.add("affiliate-link--with-image");
+          item.appendChild(image);
+        }
+      } catch {}
+    }
 
     const body = document.createElement("span");
     body.className = "affiliate-link__body";
@@ -800,6 +1003,22 @@ function renderAffiliateLinks() {
 
     item.append(body, arrow);
     list.appendChild(item);
+
+    if (link.trackingPixelUrl) {
+      try {
+        const pixelUrl = new URL(link.trackingPixelUrl);
+        if (["http:", "https:"].includes(pixelUrl.protocol)) {
+          const pixel = document.createElement("img");
+          pixel.className = "affiliate-tracking-pixel";
+          pixel.src = pixelUrl.href;
+          pixel.alt = "";
+          pixel.width = 1;
+          pixel.height = 1;
+          pixel.setAttribute("aria-hidden", "true");
+          list.appendChild(pixel);
+        }
+      } catch {}
+    }
   }
 
   card.classList.remove("is-hidden");
@@ -1246,6 +1465,14 @@ function renderOwnedBalance() {
       : `入店時所持金：${fmtInt(cash)}円`;
   }
 
+  const atmWithdrawal = $("atmWithdrawal");
+  if (atmWithdrawal) {
+    const yen = getDailyAtmWithdrawal();
+    atmWithdrawal.textContent = yen <= 0
+      ? "ATMで下ろした金額：----"
+      : `ATMで下ろした金額：${fmtInt(yen)}円`;
+  }
+
   const balance = $("ownedBalance");
   if (balance) {
     balance.textContent = `貯玉：${fmtInt(currentBalance)}玉`;
@@ -1285,6 +1512,10 @@ function saveOwnedBalanceInput() {
 
 function saveDailyCashInput() {
   showDailyCashInputDialog();
+}
+
+function saveAtmWithdrawalInput() {
+  showAtmWithdrawalInputDialog();
 }
 
 
@@ -1336,36 +1567,55 @@ function saveNewStore() {
   selectStore(name);
 }
 
+function getCumulativeConfirmedInvestments() {
+  const playInputs = getPlayInputsFromRows(getUncalculatedRows());
+  return {
+    cashYen: Math.max(
+      0,
+      (Number(playInputs.investK) || 0) * 1000,
+      Number(confirmedInvestYen) || 0,
+    ),
+    ownedBalls: Math.max(
+      0,
+      Number(playInputs.ownedBalls) || 0,
+      Number(confirmedOwnedBalls) || 0,
+    ),
+    outputBalls: Math.max(
+      0,
+      Number(playInputs.outputBalls) || 0,
+      Number(confirmedOutputBalls) || 0,
+    ),
+  };
+}
+
 function renderConfirmedInvest() {
   const el = $("investConfirmed");
   if (!el) return;
-  const playInputs = getPlayInputsFromRows(getUncalculatedRows());
-  const investYen = (Number(playInputs.investK) || 0) * 1000 || confirmedInvestYen;
-  el.textContent = `現金投資：${fmtInt(investYen)} 円`;
+  const { cashYen } = getCumulativeConfirmedInvestments();
+  el.textContent = `現金投資：${fmtInt(cashYen)} 円`;
 }
 
 
 function renderConfirmedOwned() {
   const el = $("ownedConfirmed");
   if (!el) return;
-  const playInputs = getPlayInputsFromRows(getUncalculatedRows());
-  const ownedBalls = Number(playInputs.ownedBalls) || confirmedOwnedBalls;
+  const { ownedBalls } = getCumulativeConfirmedInvestments();
   el.textContent = `貯玉使用：${fmtInt(ownedBalls)}玉`;
 }
 
 function renderConfirmedOutput() {
   const el = $("outputConfirmed");
   if (!el) return;
-  const playInputs = getPlayInputsFromRows(getUncalculatedRows());
-  const outputBalls = Number(playInputs.outputBalls) || confirmedOutputBalls;
+  const { outputBalls } = getCumulativeConfirmedInvestments();
   el.textContent = `持ち玉使用：${fmtInt(outputBalls)}玉`;
 }
 
-function showInvestmentConfirmedDialog({ cashYen = 0, ownedBalls = 0, outputBalls = 0 }) {
+function showInvestmentConfirmedDialog() {
+  const { cashYen, ownedBalls, outputBalls } = getCumulativeConfirmedInvestments();
   showAppDialog(
     "投資を確定しました",
     [
-      "今回の投資",
+      "この稼働の累計投資",
       `現金投資：${fmtInt(cashYen)}円`,
       `貯玉使用：${fmtInt(ownedBalls)}玉`,
       `持ち玉使用：${fmtInt(outputBalls)}玉`,
@@ -1437,6 +1687,7 @@ function clearAllDailySessions() {
   }
   localStorage.removeItem(LS_DAILY_HAND_BALLS);
   localStorage.removeItem(LS_DAILY_CASH_ON_HAND);
+  localStorage.removeItem(LS_DAILY_ATM_WITHDRAWAL);
   localStorage.removeItem(LS_ACTIVE_SESSION);
   localStorage.removeItem(LS_SESSION_SNAPSHOTS);
 }
@@ -1457,6 +1708,7 @@ function hasActiveDailySession() {
     outputUseBalls !== 0 ||
     getDailyHandBalls() > 0 ||
     getDailyCashOnHand() > 0 ||
+    getDailyAtmWithdrawal() > 0 ||
     lastFinalResult !== null
   );
 }
@@ -1470,6 +1722,7 @@ function clearCurrentDailyState() {
   confirmedOutputBalls = 0;
   setDailyHandBalls(0);
   setDailyCashOnHand(0);
+  setDailyAtmWithdrawal(0);
   playStartHandBalls = null;
   investmentsSincePlayBoundary = 0;
   calculatedLogCount = 0;
@@ -1576,6 +1829,7 @@ function createSessionData() {
     lastHandBalanceInput: normalizeHandBalanceInput(lastHandBalanceInput),
     dailyHandBalls: getDailyHandBalls(),
     dailyCashOnHand: getDailyCashOnHand(),
+    dailyAtmWithdrawal: getDailyAtmWithdrawal(),
     draftInputs: getSessionDraftInputs(),
     lastFinalResult: normalizeFinalResult(lastFinalResult),
   };
@@ -1597,8 +1851,6 @@ function sessionHasActivity(data) {
       Number(data.investYen) !== 0 ||
       Number(data.ownedUseBalls) !== 0 ||
       Number(data.outputUseBalls) !== 0 ||
-      Number(data.dailyHandBalls) > 0 ||
-      Number(data.dailyCashOnHand) > 0 ||
       normalizeFinalResult(data.lastFinalResult) !== null
     )
   );
@@ -1776,11 +2028,18 @@ function loadSession(useActiveFallback = true) {
       localStorage.setItem(LS_SELECTED_STORE, selectedStore);
     }
     playSource = ["cash", "owned", "output"].includes(data.playSource) ? data.playSource : "cash";
-    if (Number.isFinite(data.dailyHandBalls)) {
+    // These balances belong to the day/store, not to an individual machine.
+    // Only restore them from an old session when the shared key does not exist;
+    // otherwise switching machines could overwrite the latest shared balance
+    // with a stale balance saved for the destination machine.
+    if (localStorage.getItem(LS_DAILY_HAND_BALLS) === null && Number.isFinite(data.dailyHandBalls)) {
       setDailyHandBalls(data.dailyHandBalls);
     }
-    if (Number.isFinite(data.dailyCashOnHand)) {
+    if (localStorage.getItem(LS_DAILY_CASH_ON_HAND) === null && Number.isFinite(data.dailyCashOnHand)) {
       setDailyCashOnHand(data.dailyCashOnHand);
+    }
+    if (localStorage.getItem(LS_DAILY_ATM_WITHDRAWAL) === null && Number.isFinite(data.dailyAtmWithdrawal)) {
+      setDailyAtmWithdrawal(data.dailyAtmWithdrawal);
     }
     renderStoreControls();
     setPlaySource(playSource, false, false, true);
@@ -1826,6 +2085,18 @@ function clearSession() {
 
 function getCurrentBorder() {
   return selectedMachine?.border?.[selectedExchange];
+}
+
+// DMMの通常ボーダーと同様に、長時間遊技で現金投資から持ち玉遊技へ
+// 移行する実戦を想定した表示値。期待値計算では、実際に記録された
+// 持ち玉比率を使うため、従来どおり cash/equal の基準値を保持する。
+const PRACTICAL_BORDER_OWNED_RATIO = 0.3;
+
+function getPracticalBorder(machine, exchange = selectedExchange) {
+  const equalBorder = Number(machine?.border?.[25]);
+  const cashBorder = Number(machine?.border?.[exchange]);
+  if (!Number.isFinite(equalBorder) || !Number.isFinite(cashBorder)) return null;
+  return cashBorder - (cashBorder - equalBorder) * PRACTICAL_BORDER_OWNED_RATIO;
 }
 
 
@@ -1925,6 +2196,8 @@ function getMachineSearchText(machine) {
     machine.name,
     machine.maker,
     machine.jackpot,
+    machine.czRate,
+    machine.czSuccess,
     machine.rushEntry,
     ...(Array.isArray(machine.tags) ? machine.tags : []),
     machine.keyword,
@@ -2022,8 +2295,13 @@ function renderMachinePickerList() {
 
     const meta = document.createElement("span");
     meta.className = "machine-picker-item__meta";
-    const border = machine?.border?.[selectedExchange];
-    const specText = `大当り ${machine.jackpot || "—"} / ${selectedExchange}玉ボーダー ${fmtBorder(border)}回/k`;
+    const border = getPracticalBorder(machine);
+    const jackpotSpec = String(machine.jackpot || "—").replaceAll("約", "");
+    const borderSpec = `${fmtBorder(border)}/k`;
+    const probabilitySpec = machine.czRate && machine.czSuccess
+      ? `CZ ${machine.czRate}・成功期待度${machine.czSuccess}・図柄揃い${jackpotSpec}`
+      : jackpotSpec;
+    const specText = `${probabilitySpec} / ${borderSpec}`;
     const storeJudgeText = formatMachineStoreJudgeText(storeJudge);
     const spec = document.createElement("span");
     spec.className = "machine-picker-item__spec";
@@ -2669,11 +2947,16 @@ function confirmEndBalls() {
   if (last && String(last.label).startsWith("ヤメ")) {
     last.label = "ヤメ";
     last.endBalls = endBallsYame;
-    applyOutputUseFromCurrentHand(endBallsYame, {
+    const applied = applyOutputUseFromCurrentHand(endBallsYame, {
       alertWhenNoUse: false,
       targetRow: last,
       source: "end",
     });
+    if (!applied) {
+      endBallsPending = true;
+      delete last.endBalls;
+      return;
+    }
   }
 
   $("endBallsPanel")?.classList.add("is-hidden");
@@ -2908,21 +3191,51 @@ function renderMachineInfo(animate = false) {
   const m = selectedMachine;
 
 
-  const borderVal = m?.border?.[selectedExchange];
+  const equalBorderVal = Number(m?.border?.[25]);
+  const borderVal = getPracticalBorder(m);
 
 
   const borderEl = $("infoBorder");
   const jackpotEl = $("infoJackpot");
   const rushEl = $("infoRush");
+  const rateRowEl = jackpotEl?.closest(".rate-row");
+  rateRowEl?.classList.toggle("has-cz", Boolean(m?.czRate && m?.czSuccess));
 
 
-  const borderText = `${selectedExchange}ボーダー：${fmtBorder(borderVal)} 回/k`;
-  const jackpotText = `図柄当たり確率：${m?.jackpot ?? "—"}`;
+  const renderBorderText = () => {
+    borderEl.replaceChildren();
+
+    if (selectedExchange === 25) {
+      const main = document.createElement("span");
+      main.className = "border-main";
+      main.textContent = `等価ボーダー ${fmtBorder(equalBorderVal)}回/k`;
+      borderEl.appendChild(main);
+      return;
+    }
+
+    const equal = document.createElement("span");
+    equal.className = "border-secondary";
+    equal.textContent = `等価ボーダー ${fmtBorder(equalBorderVal)}回/k`;
+
+    const separator = document.createElement("span");
+    separator.className = "border-separator";
+    separator.textContent = "／";
+    separator.setAttribute("aria-hidden", "true");
+
+    const main = document.createElement("span");
+    main.className = "border-main";
+    main.textContent = `${selectedExchange}玉ボーダー ${fmtBorder(borderVal)}回/k`;
+
+    borderEl.append(equal, separator, main);
+  };
+  const jackpotText = m?.czRate && m?.czSuccess
+    ? `CZ確率 ${m.czRate}　CZ成功期待度 ${m.czSuccess}\n図柄揃い確率 ${m.jackpot ?? "—"}`
+    : `図柄揃い確率：${m?.jackpot ?? "—"}`;
   const rushText = `ラッシュ突入率：${m?.rushEntry ?? "—"}`;
 
 
   const targets = [
-    { el: borderEl, text: borderText },
+    { el: borderEl, render: renderBorderText },
     { el: jackpotEl, text: jackpotText },
     { el: rushEl, text: rushText },
   ].filter((x) => x.el);
@@ -2931,7 +3244,8 @@ function renderMachineInfo(animate = false) {
   if (!animate) {
     for (const t of targets) {
       t.el.classList.remove("is-updating", "is-revealing");
-      t.el.innerText = t.text;
+      if (t.render) t.render();
+      else t.el.innerText = t.text;
     }
     return;
   }
@@ -2944,7 +3258,8 @@ function renderMachineInfo(animate = false) {
 
 
   for (const t of targets) {
-    t.el.innerText = t.text;
+    if (t.render) t.render();
+    else t.el.innerText = t.text;
   }
 
 
@@ -3393,6 +3708,27 @@ function subtractLastLogInvestment(prop, amount) {
   }
 }
 
+function getLatestInvestmentRow() {
+  const firstUncalculated = Math.max(0, getCalculatedLogCount());
+  for (let i = spinLog.length - 1; i >= firstUncalculated; i -= 1) {
+    const row = spinLog[i];
+    if (!row) continue;
+    if (row.label === "開始" || (Number(row.add) || 0) > 0) return row;
+  }
+  return null;
+}
+
+function addInvestmentToLatestRow(prop, amount) {
+  const add = Number(amount) || 0;
+  if (add === 0) return false;
+  const row = getLatestInvestmentRow();
+  if (!row) return false;
+
+  row[prop] = Math.max(0, (Number(row[prop]) || 0) + add);
+  if (row[prop] === 0) delete row[prop];
+  return true;
+}
+
 function loadTotalsForStoreMachine(store, machineId) {
   const key = getStoreMachineTotalsKey(store, machineId);
   if (!key) return createEmptyTotals();
@@ -3494,17 +3830,7 @@ function confirmInvest() {
   const k = add / 1000;
 
 
-  for (let i = spinLog.length - 1; i >= 0; i--) {
-    const row = spinLog[i];
-    const a = Number(row.add) || 0;
-
-
-    if (a > 0) {
-      row.investK = (Number(row.investK) || 0) + k;
-      if (row.investK < 0) row.investK = 0;
-      break;
-    }
-  }
+  addInvestmentToLatestRow("investK", k);
 
 
   setInvestYen(0, true);
@@ -3560,18 +3886,7 @@ function confirmOwnedUse() {
   addOwnedBalance(-add);
 
 
-  for (let i = spinLog.length - 1; i >= 0; i--) {
-    const row = spinLog[i];
-    const a = Number(row.add) || 0;
-
-
-    if (a > 0) {
-      row.ownedBalls = (Number(row.ownedBalls) || 0) + add;
-      if (row.ownedBalls < 0) row.ownedBalls = 0;
-      if (row.ownedBalls === 0) delete row.ownedBalls;
-      break;
-    }
-  }
+  addInvestmentToLatestRow("ownedBalls", add);
 
 
   setOwnedUseBalls(0, true);
@@ -3608,7 +3923,14 @@ function applyOutputUseFromCurrentHand(currentHand, options = {}) {
   }
 
   const startHand = Number.isFinite(playStartHandBalls) ? playStartHandBalls : getDailyHandBalls();
-  if (!Number.isFinite(startHand) || startHand <= 0) {
+  const uncalculatedInputs = getPlayInputsFromRows(getUncalculatedRows());
+  const unspentInputAllowance = Math.max(0,
+    (Number(uncalculatedInputs.investK) || 0) * 250 +
+    (Number(uncalculatedInputs.ownedBalls) || 0)
+  );
+  const maximumPossibleHand = Math.max(0, Number(startHand) || 0) + unspentInputAllowance;
+
+  if ((!Number.isFinite(startHand) || startHand <= 0) && maximumPossibleHand <= 0) {
     if (source === "end" && currentHand === 0) {
       if (targetRow) delete targetRow.outputBallsFromEnd;
       clearFinalResult();
@@ -3623,12 +3945,12 @@ function applyOutputUseFromCurrentHand(currentHand, options = {}) {
     return false;
   }
 
-  if (currentHand > startHand) {
-    alert("現在の持ち玉が開始時の持ち玉より多くなっています");
+  if (currentHand > maximumPossibleHand) {
+    alert("現在の持ち玉が、開始時の持ち玉・投入した貸玉・貯玉の合計より多くなっています");
     return false;
   }
 
-  const add = startHand - currentHand;
+  const add = Math.max(0, startHand - currentHand);
   if (add <= 0) {
     if (alertWhenNoUse) alert("投資された持ち玉はありません");
     if (source === "end" && targetRow) delete targetRow.outputBallsFromEnd;
@@ -3648,18 +3970,7 @@ function applyOutputUseFromCurrentHand(currentHand, options = {}) {
   lastConfirmedOutputBalls = add;
   confirmedOutputBalls += add;
 
-  let appliedRow = targetRow || null;
-  if (!appliedRow) {
-    for (let i = spinLog.length - 1; i >= 0; i--) {
-      const row = spinLog[i];
-      const a = Number(row.add) || 0;
-
-      if (a > 0) {
-        appliedRow = row;
-        break;
-      }
-    }
-  }
+  const appliedRow = targetRow || getLatestInvestmentRow();
 
   if (appliedRow) {
     appliedRow.outputBalls = (Number(appliedRow.outputBalls) || 0) + add;
@@ -3824,29 +4135,468 @@ function getAllMachineTotals() {
 }
 
 
+function loadCalendarEntries() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(LS_CALENDAR_ENTRIES) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((entry) => (
+      entry &&
+      /^\d{4}-\d{2}-\d{2}$/.test(String(entry.date || "")) &&
+      Number.isFinite(Number(entry.expectYen))
+    )).map((entry) => ({
+      id: String(entry.id || ""),
+      date: String(entry.date),
+      createdAt: String(entry.createdAt || ""),
+      machineId: String(entry.machineId || ""),
+      machineName: String(entry.machineName || "機種不明"),
+      store: String(entry.store || ""),
+      expectYen: Number(entry.expectYen),
+      actualYen: entry.actualYen !== null && entry.actualYen !== undefined && Number.isFinite(Number(entry.actualYen))
+        ? Number(entry.actualYen)
+        : null,
+    })).slice(-5000);
+  } catch {
+    return [];
+  }
+}
+
+function saveCalendarEntries(entries) {
+  localStorage.setItem(LS_CALENDAR_ENTRIES, JSON.stringify(entries.slice(-5000)));
+}
+
+function loadCalendarActuals() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(LS_CALENDAR_ACTUALS) || "{}");
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") return {};
+    return Object.fromEntries(Object.entries(parsed).filter(([date, value]) => (
+      /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Number(value))
+    )).map(([date, value]) => [date, Math.round(Number(value))]));
+  } catch {
+    return {};
+  }
+}
+
+function loadCalendarActualAdjustments() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(LS_CALENDAR_ACTUAL_ADJUSTMENTS) || "{}");
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") return {};
+    return Object.fromEntries(Object.entries(parsed).filter(([date, value]) => (
+      /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Number(value))
+    )).map(([date, value]) => [date, Math.round(Number(value))]));
+  } catch {
+    return {};
+  }
+}
+
+function getCalendarAutoActuals(entries = loadCalendarEntries()) {
+  const actuals = {};
+  for (const entry of entries) {
+    if (entry.actualYen === null || entry.actualYen === undefined || !Number.isFinite(Number(entry.actualYen))) continue;
+    actuals[entry.date] = Math.round((Number(actuals[entry.date]) || 0) + Number(entry.actualYen));
+  }
+  return actuals;
+}
+
+function getResolvedCalendarActuals(entries = loadCalendarEntries()) {
+  const autoActuals = getCalendarAutoActuals(entries);
+  const adjustments = loadCalendarActualAdjustments();
+  const resolved = { ...autoActuals };
+  for (const [date, adjustment] of Object.entries(adjustments)) {
+    resolved[date] = Math.round((Number(resolved[date]) || 0) + Number(adjustment));
+  }
+  return { ...resolved, ...loadCalendarActuals() };
+}
+
+function saveCalendarActual() {
+  const input = $("calendarActualInput");
+  if (!input) return;
+  const raw = input.value.trim();
+  const adjustments = loadCalendarActualAdjustments();
+  const legacyActuals = loadCalendarActuals();
+
+  if (raw === "") {
+    delete adjustments[calendarSelectedDate];
+  } else {
+    const minusButton = $("calendarActualMinus");
+    const negativeSelected = minusButton?.getAttribute("aria-pressed") === "true";
+    const enteredValue = Number(raw);
+    const value = negativeSelected ? -Math.abs(enteredValue) : enteredValue;
+    if (!Number.isFinite(value)) {
+      input.focus();
+      return;
+    }
+    adjustments[calendarSelectedDate] = Math.round(value);
+  }
+
+  delete legacyActuals[calendarSelectedDate];
+  localStorage.setItem(LS_CALENDAR_ACTUAL_ADJUSTMENTS, JSON.stringify(adjustments));
+  localStorage.setItem(LS_CALENDAR_ACTUALS, JSON.stringify(legacyActuals));
+  renderCalendar();
+}
+
+function setCalendarActualMinusState(enabled) {
+  const button = $("calendarActualMinus");
+  if (!button) return;
+  button.setAttribute("aria-pressed", enabled ? "true" : "false");
+  button.setAttribute("aria-label", enabled ? "マイナス入力を解除" : "マイナス入力に切り替え");
+}
+
+function toggleCalendarActualMinus() {
+  const input = $("calendarActualInput");
+  const button = $("calendarActualMinus");
+  if (!input || !button) return;
+  const enabled = button.getAttribute("aria-pressed") !== "true";
+  setCalendarActualMinusState(enabled);
+  const value = Number(input.value);
+  if (input.value !== "" && Number.isFinite(value)) {
+    input.value = String(enabled ? -Math.abs(value) : Math.abs(value));
+  }
+  input.focus();
+}
+
+function deleteCalendarActual() {
+  const adjustments = loadCalendarActualAdjustments();
+  const legacyActuals = loadCalendarActuals();
+  delete adjustments[calendarSelectedDate];
+  delete legacyActuals[calendarSelectedDate];
+  localStorage.setItem(LS_CALENDAR_ACTUAL_ADJUSTMENTS, JSON.stringify(adjustments));
+  localStorage.setItem(LS_CALENDAR_ACTUALS, JSON.stringify(legacyActuals));
+  renderCalendar();
+}
+
+function deleteCalendarEntry(entryIndex, entryId = "") {
+  const entries = loadCalendarEntries();
+  const index = Number(entryIndex);
+  if (!Number.isInteger(index) || index < 0 || index >= entries.length) return;
+
+  const entry = entries[index];
+  if (entryId && entry.id && entry.id !== entryId) return;
+  if (!confirm(`「${entry.machineName}」のログを削除しますか？\n期待値と自動算出された実収支も集計から外れます。`)) return;
+
+  entries.splice(index, 1);
+  saveCalendarEntries(entries);
+  renderCalendar();
+  renderMachineTotalCards();
+  showToast("カレンダーのログを削除しました");
+}
+
+function addCalendarExpectationEntry(expectYen, actualYen = null) {
+  if (!Number.isFinite(Number(expectYen))) return;
+  const entries = loadCalendarEntries();
+  const now = new Date();
+  entries.push({
+    id: `${now.getTime()}-${selectedMachine.id}`,
+    date: getTodayStamp(),
+    createdAt: now.toISOString(),
+    machineId: selectedMachine.id,
+    machineName: selectedMachine.name,
+    store: selectedStore || "",
+    expectYen: Math.round(Number(expectYen)),
+    actualYen: actualYen !== null && actualYen !== undefined && Number.isFinite(Number(actualYen))
+      ? Math.round(Number(actualYen))
+      : null,
+    exchange: selectedExchange,
+  });
+  saveCalendarEntries(entries);
+}
+
+function getConfirmedEndBallsFromRows(rows) {
+  const source = Array.isArray(rows) ? rows : [];
+  for (let index = source.length - 1; index >= 0; index -= 1) {
+    const value = Number(source[index]?.endBalls);
+    if (source[index]?.label === "ヤメ" && Number.isFinite(value) && value >= 0) {
+      return Math.floor(value);
+    }
+  }
+  return null;
+}
+
+function calcSessionActualYen(rows, { investK, ownedBalls, outputBalls }) {
+  const endBalls = getConfirmedEndBallsFromRows(rows);
+  if (endBalls === null) return null;
+  const yenPerBall = YEN_PER_BALL;
+  const cashInvestYen = (Number(investK) || 0) * 1000;
+  const ballInvestmentYen = ((Number(ownedBalls) || 0) + (Number(outputBalls) || 0)) * yenPerBall;
+  return Math.round(endBalls * yenPerBall - cashInvestYen - ballInvestmentYen);
+}
+
+function refreshExpectationHistoryViews() {
+  const now = new Date();
+  calendarSelectedDate = getTodayStamp();
+  calendarCursor = new Date(now.getFullYear(), now.getMonth(), 1);
+  renderCalendar();
+  renderMachineTotalCards();
+}
+
+function formatCalendarYen(value) {
+  const yen = Math.round(Number(value) || 0);
+  return `${yen > 0 ? "+" : ""}${fmtInt(yen)}円`;
+}
+
+function formatCalendarCellValue(value) {
+  const yen = Math.round(Number(value) || 0);
+  return `${yen > 0 ? "+" : ""}${yen}`;
+}
+
+function getCalendarDateStamp(year, monthIndex, day) {
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function renderCalendarDayDetail(entries, actuals) {
+  const title = $("calendarSelectedDate");
+  const wrap = $("calendarDayEntries");
+  if (!title || !wrap) return;
+
+  const [year, month, day] = calendarSelectedDate.split("-").map(Number);
+  title.textContent = Number.isFinite(year)
+    ? `${year}年${month}月${day}日の記録`
+    : "日付を選択";
+  wrap.innerHTML = "";
+  const actualInput = $("calendarActualInput");
+  if (actualInput) {
+    const adjustments = loadCalendarActualAdjustments();
+    const legacyActuals = loadCalendarActuals();
+    if (Object.prototype.hasOwnProperty.call(adjustments, calendarSelectedDate)) {
+      actualInput.value = String(adjustments[calendarSelectedDate]);
+    } else if (Object.prototype.hasOwnProperty.call(legacyActuals, calendarSelectedDate)) {
+      const autoActual = Number(getCalendarAutoActuals(entries)[calendarSelectedDate]) || 0;
+      actualInput.value = String(Math.round(Number(legacyActuals[calendarSelectedDate]) - autoActual));
+    } else {
+      actualInput.value = "";
+    }
+    setCalendarActualMinusState(Number(actualInput.value) < 0);
+  }
+
+  const dayEntries = entries
+    .map((entry, index) => ({ ...entry, calendarEntryIndex: index }))
+    .filter((entry) => entry.date === calendarSelectedDate);
+  const dayExpected = dayEntries.reduce((sum, entry) => sum + Number(entry.expectYen || 0), 0);
+  const hasDayActual = Object.prototype.hasOwnProperty.call(actuals, calendarSelectedDate);
+  const dayActual = hasDayActual ? Number(actuals[calendarSelectedDate]) : null;
+
+  if (dayEntries.length || hasDayActual) {
+    const summary = document.createElement("div");
+    summary.className = "calendar-day-detail__summary";
+
+    const addSummaryValue = (label, value, hasValue, colorSetter) => {
+      const block = document.createElement("div");
+      const caption = document.createElement("span");
+      caption.textContent = label;
+      const amount = document.createElement("strong");
+      amount.textContent = hasValue ? formatCalendarYen(value) : "—";
+      if (hasValue) colorSetter(amount, value);
+      block.append(caption, amount);
+      summary.appendChild(block);
+    };
+
+    addSummaryValue("実収支", dayActual, hasDayActual, setActualSignedColor);
+    addSummaryValue("期待値", dayExpected, dayEntries.length > 0, setSignedColor);
+    wrap.appendChild(summary);
+  }
+
+  if (!dayEntries.length) {
+    const empty = document.createElement("p");
+    empty.className = "calendar-empty";
+    empty.textContent = "期待値の記録がありません";
+    wrap.appendChild(empty);
+    return;
+  }
+
+  for (const entry of dayEntries.slice().reverse()) {
+    const item = document.createElement("article");
+    item.className = "calendar-day-entry";
+    const body = document.createElement("div");
+    const machine = document.createElement("strong");
+    machine.className = "calendar-day-entry__machine";
+    machine.textContent = entry.machineName;
+    body.appendChild(machine);
+    const store = document.createElement("span");
+    store.className = "calendar-day-entry__store";
+    store.textContent = entry.store || "店舗未設定";
+    body.appendChild(store);
+    const values = document.createElement("div");
+    values.className = "calendar-day-entry__values";
+    const actualValue = document.createElement("span");
+    actualValue.className = "calendar-day-entry__actual-value";
+    const hasEntryActual = entry.actualYen !== null && entry.actualYen !== undefined && Number.isFinite(Number(entry.actualYen));
+    actualValue.textContent = hasEntryActual
+      ? `実 ${formatCalendarYen(entry.actualYen)}`
+      : "実 —";
+    if (hasEntryActual) setActualSignedColor(actualValue, entry.actualYen);
+    const expectedValue = document.createElement("span");
+    expectedValue.className = "calendar-day-entry__value";
+    expectedValue.textContent = `期 ${formatCalendarYen(entry.expectYen)}`;
+    setSignedColor(expectedValue, entry.expectYen);
+    values.append(actualValue, expectedValue);
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "calendar-day-entry__delete";
+    deleteButton.dataset.calendarEntryDelete = String(entry.calendarEntryIndex);
+    deleteButton.dataset.calendarEntryId = entry.id;
+    deleteButton.textContent = "削除";
+    deleteButton.setAttribute("aria-label", `${entry.machineName}のログを削除`);
+    item.append(body, values, deleteButton);
+    wrap.appendChild(item);
+  }
+}
+
+function renderCalendar() {
+  const title = $("calendarMonthTitle");
+  const grid = $("calendarGrid");
+  if (!title || !grid) return;
+
+  const year = calendarCursor.getFullYear();
+  const monthIndex = calendarCursor.getMonth();
+  const entries = loadCalendarEntries();
+  const actuals = getResolvedCalendarActuals(entries);
+  const monthPrefix = `${year}-${String(monthIndex + 1).padStart(2, "0")}-`;
+  const monthEntries = entries.filter((entry) => entry.date.startsWith(monthPrefix));
+  const daily = new Map();
+
+  for (const entry of monthEntries) {
+    const current = daily.get(entry.date) || { expectYen: 0, count: 0 };
+    current.expectYen += Number(entry.expectYen) || 0;
+    current.count += 1;
+    daily.set(entry.date, current);
+  }
+
+  const monthExpected = monthEntries.reduce((sum, entry) => sum + (Number(entry.expectYen) || 0), 0);
+  const monthActualEntries = Object.entries(actuals)
+    .filter(([date]) => date.startsWith(monthPrefix));
+  const hasMonthActual = monthActualEntries.length > 0;
+  const monthActual = monthActualEntries.reduce((sum, [, value]) => sum + Number(value), 0);
+  const monthDifference = monthActual - monthExpected;
+  title.innerHTML = "";
+  const calendarYear = document.createElement("span");
+  calendarYear.textContent = `${year}年`;
+  const calendarMonth = document.createElement("span");
+  calendarMonth.className = "calendar-header__month";
+  calendarMonth.textContent = String(monthIndex + 1);
+  const calendarMonthSuffix = document.createElement("span");
+  calendarMonthSuffix.textContent = "月";
+  title.append(calendarYear, calendarMonth, calendarMonthSuffix);
+  title.setAttribute("aria-label", `${year}年${monthIndex + 1}月`);
+  setText("calendarMonthExpected", formatCalendarYen(monthExpected));
+  setText("calendarMonthActual", hasMonthActual ? formatCalendarYen(monthActual) : "—");
+  setText("calendarMonthDifference", hasMonthActual ? formatCalendarYen(monthDifference) : "—");
+  setSignedColor($("calendarMonthExpected"), monthExpected);
+  setActualSignedColor($("calendarMonthActual"), hasMonthActual ? monthActual : 0);
+  setActualSignedColor($("calendarMonthDifference"), hasMonthActual ? monthDifference : 0);
+
+  grid.innerHTML = "";
+  const firstWeekday = new Date(year, monthIndex, 1).getDay();
+  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+  const today = getTodayStamp();
+  for (let i = 0; i < firstWeekday; i += 1) {
+    const blank = document.createElement("span");
+    blank.className = "calendar-day is-blank";
+    blank.setAttribute("aria-hidden", "true");
+    grid.appendChild(blank);
+  }
+
+  for (let day = 1; day <= lastDay; day += 1) {
+    const stamp = getCalendarDateStamp(year, monthIndex, day);
+    const summary = daily.get(stamp);
+    const hasActual = Object.prototype.hasOwnProperty.call(actuals, stamp);
+    const actualYen = hasActual ? actuals[stamp] : null;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "calendar-day";
+    button.dataset.calendarDate = stamp;
+    button.setAttribute("aria-label", `${monthIndex + 1}月${day}日${summary ? ` 期待値${formatCalendarYen(summary.expectYen)}` : ""}${hasActual ? ` 実収支${formatCalendarYen(actualYen)}` : ""}`);
+    if (summary) button.classList.add("has-value");
+    if (hasActual) button.classList.add("has-actual");
+    if (stamp === today) button.classList.add("is-today");
+    if (stamp === calendarSelectedDate) button.classList.add("is-selected");
+
+    const number = document.createElement("span");
+    number.className = "calendar-day__number";
+    number.textContent = String(day);
+    button.appendChild(number);
+    if (summary) {
+      const value = document.createElement("span");
+      value.className = "calendar-day__value";
+      value.textContent = `期${formatCalendarCellValue(summary.expectYen)}`;
+      setSignedColor(value, summary.expectYen);
+      button.appendChild(value);
+    }
+    if (hasActual) {
+      const actual = document.createElement("span");
+      actual.className = "calendar-day__actual";
+      actual.textContent = formatCalendarCellValue(actualYen);
+      setActualSignedColor(actual, actualYen);
+      button.appendChild(actual);
+    }
+    grid.appendChild(button);
+  }
+
+  renderCalendarDayDetail(entries, actuals);
+}
+
+function changeCalendarMonth(offset) {
+  const content = $("calendarMonthContent");
+  const prevButton = $("calendarPrevMonth");
+  const nextButton = $("calendarNextMonth");
+  if (!content || content.classList.contains("is-updating") || content.classList.contains("is-revealing")) return;
+
+  const applyMonthChange = () => {
+    calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + offset, 1);
+    calendarSelectedDate = getCalendarDateStamp(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1);
+    renderCalendar();
+  };
+
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    applyMonthChange();
+    return;
+  }
+
+  prevButton?.setAttribute("disabled", "");
+  nextButton?.setAttribute("disabled", "");
+  content.classList.remove("is-revealing");
+  content.classList.add("is-updating");
+
+  window.setTimeout(() => {
+    applyMonthChange();
+    content.classList.remove("is-updating");
+    content.classList.add("is-revealing");
+
+    const finish = () => {
+      content.classList.remove("is-revealing");
+      prevButton?.removeAttribute("disabled");
+      nextButton?.removeAttribute("disabled");
+    };
+    content.addEventListener("animationend", finish, { once: true });
+    window.setTimeout(finish, 650);
+  }, 200);
+}
+
 function setTotalViewMode(mode, shouldScroll = false) {
-  const nextMode = mode === "all" ? "all" : "selected";
+  const nextMode = ["all", "selected", "calendar"].includes(mode) ? mode : "selected";
   const previousMode = totalViewMode;
 
-  if (nextMode === "all" && previousMode !== "all") {
+  if (nextMode !== "selected" && previousMode === "selected") {
     totalViewReturnY = window.scrollY;
   }
 
-  totalViewMode = mode === "all" ? "all" : "selected";
+  totalViewMode = nextMode;
   localStorage.setItem(LS_TOTAL_VIEW_MODE, totalViewMode);
 
 
   $("totalTabAll")?.classList.toggle("is-active", totalViewMode === "all");
   $("totalTabSelected")?.classList.toggle("is-active", totalViewMode === "selected");
+  $("totalTabCalendar")?.classList.toggle("is-active", totalViewMode === "calendar");
   document.body.classList.toggle("is-total-all-mode", totalViewMode === "all");
   document.body.classList.toggle("is-total-selected-mode", totalViewMode === "selected");
+  document.body.classList.toggle("is-calendar-mode", totalViewMode === "calendar");
 
-
+  if (totalViewMode === "calendar") renderCalendar();
   renderMachineTotalCards();
 
-  if (shouldScroll) {
+  if (nextMode === "calendar") {
+    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
+  } else if (shouldScroll) {
     $("totalCard")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  } else if (nextMode === "selected" && previousMode === "all" && Number.isFinite(totalViewReturnY)) {
+  } else if (nextMode === "selected" && previousMode !== "selected" && Number.isFinite(totalViewReturnY)) {
     requestAnimationFrame(() => {
       window.scrollTo({ top: totalViewReturnY, behavior: "auto" });
       totalViewReturnY = null;
@@ -4043,27 +4793,33 @@ function renderMachineTotalCards() {
     goal.className = "goal";
 
 
-    goal.appendChild(addMetricRow("目標期待値", (valueEl) => {
-      valueEl.textContent = `${fmtInt(GOAL_STEPS[progress.index])}円（${GOAL_LEVELS[progress.index]}）`;
-    }, "goal-title"));
+    if (displayOptions.showGoalTarget) {
+      goal.appendChild(addMetricRow("目標期待値", (valueEl) => {
+        valueEl.textContent = `${fmtInt(GOAL_STEPS[progress.index])}円（${GOAL_LEVELS[progress.index]}）`;
+      }, "goal-title"));
+    }
 
 
-    const bar = document.createElement("progress");
-    bar.value = progress.value;
-    bar.max = progress.max;
-    bar.classList.add(getGoalColorClass(progress.index));
-    goal.appendChild(bar);
+    if (displayOptions.showGoalBar) {
+      const bar = document.createElement("progress");
+      bar.value = progress.value;
+      bar.max = progress.max;
+      bar.classList.add(getGoalColorClass(progress.index));
+      goal.appendChild(bar);
+    }
 
 
-    goal.appendChild(addMetricRow("達成率", (valueEl) => {
-      valueEl.textContent = `${(Math.floor(Math.min(100, progress.percent) * 10) / 10).toFixed(1)} %`;
-    }));
-    card.appendChild(goal);
+    if (displayOptions.showGoalRate) {
+      goal.appendChild(addMetricRow("達成率", (valueEl) => {
+        valueEl.textContent = `${(Math.floor(Math.min(100, progress.percent) * 10) / 10).toFixed(1)} %`;
+      }));
+    }
+    if (goal.childElementCount > 0) card.appendChild(goal);
 
 
     const note = document.createElement("p");
     note.className = "note";
-    note.textContent = "※通常ボーダーは選択交換率、真ボーダーは持ち玉比率を加味、期待値は等価換算です";
+    note.textContent = "※交換率別ボーダーは持ち玉比率30%想定、真ボーダーは実際の持ち玉比率を加味、期待値は等価換算です";
     card.appendChild(note);
 
 
@@ -4081,68 +4837,155 @@ function renderMachineTotalCards() {
 
 
 function renderAllMachineTotalCard(wrap) {
-  const allTotals = getAllMachineTotals();
-  const expectBalls = Number(allTotals.totalExpectBalls) || 0;
-  const expectYen = calcExpectationYenFromBalls(expectBalls);
-  const ballText = expectBalls > 0 ? `+${fmtInt(expectBalls)}` : fmtInt(expectBalls);
-  const yenText = expectYen > 0 ? `+${fmtInt(expectYen)}` : fmtInt(expectYen);
-  const progress = getGoalProgress(expectBalls);
+  const expectationEntries = loadCalendarEntries();
+  const actuals = getResolvedCalendarActuals(expectationEntries);
+  const actualEntries = Object.entries(actuals);
+  const yearPrefix = `${allResultsYear}-`;
+  const yearlyActualEntries = actualEntries.filter(([date]) => date.startsWith(yearPrefix));
+  const yearlyExpectationEntries = expectationEntries.filter((entry) => entry.date.startsWith(yearPrefix));
+  const yearlyActual = yearlyActualEntries.reduce((sum, [, value]) => sum + Number(value), 0);
+  const yearlyExpectation = yearlyExpectationEntries.reduce((sum, entry) => sum + Number(entry.expectYen), 0);
+  const cumulativeActual = actualEntries.reduce((sum, [, value]) => sum + Number(value), 0);
+  const cumulativeExpectation = expectationEntries.reduce((sum, entry) => sum + Number(entry.expectYen), 0);
+  const currentYear = new Date().getFullYear();
 
+  const dashboard = document.createElement("section");
+  dashboard.className = "all-results-dashboard";
+  dashboard.setAttribute("aria-label", "全機種の収支");
 
-  const card = document.createElement("article");
-  card.className = "machine-total-card machine-total-card--summary";
+  const header = document.createElement("header");
+  header.className = "all-results-dashboard__header";
 
+  const previous = document.createElement("button");
+  previous.type = "button";
+  previous.className = "all-results-dashboard__year-button";
+  previous.dataset.allResultsYearOffset = "-1";
+  previous.setAttribute("aria-label", "前年");
+  previous.textContent = "‹";
 
-  const title = document.createElement("h3");
-  title.className = "machine-total-card__title";
-  title.textContent = "全機種合計";
-  card.appendChild(title);
+  const headingWrap = document.createElement("div");
+  const heading = document.createElement("h3");
+  heading.textContent = `${allResultsYear}年`;
+  headingWrap.appendChild(heading);
 
+  const next = document.createElement("button");
+  next.type = "button";
+  next.className = "all-results-dashboard__year-button";
+  next.dataset.allResultsYearOffset = "1";
+  next.setAttribute("aria-label", "翌年");
+  next.textContent = "›";
+  next.disabled = allResultsYear >= currentYear;
+  header.append(previous, headingWrap, next);
 
-  const totalLine = document.createElement("p");
-  totalLine.className = "machine-total-card__ev";
-  totalLine.appendChild(document.createTextNode("累積期待値："));
-  const totalValue = document.createElement("span");
-  totalValue.textContent = `${ballText}玉（${yenText}円）`;
-  setSignedColor(totalValue, expectBalls);
-  totalLine.appendChild(totalValue);
-  card.appendChild(totalLine);
+  const addResultCard = ({
+    title,
+    actual,
+    expectation,
+    hasActual,
+    hasExpectation,
+    variant,
+  }) => {
+    const card = document.createElement("article");
+    card.className = `all-results-card all-results-card--${variant}`;
+    if (title) {
+      const titleEl = document.createElement("h4");
+      titleEl.className = "all-results-card__title";
+      titleEl.textContent = title;
+      card.appendChild(titleEl);
+    }
+    const metrics = document.createElement("div");
+    metrics.className = "all-results-card__metrics";
+    if (variant === "annual") metrics.classList.add("all-results-year-content");
+    const addMetric = (label, value, hasValue, colorType) => {
+      const metric = document.createElement("div");
+      metric.className = "all-results-card__metric";
+      const labelEl = document.createElement("span");
+      labelEl.className = "all-results-card__label";
+      labelEl.textContent = label;
+      const valueEl = document.createElement("strong");
+      valueEl.className = "all-results-card__value";
+      valueEl.textContent = hasValue ? formatCalendarYen(value) : "—";
+      if (colorType === "expectation") setSignedColor(valueEl, hasValue ? value : 0);
+      else setActualSignedColor(valueEl, hasValue ? value : 0);
+      metric.append(labelEl, valueEl);
+      metrics.appendChild(metric);
+    };
+    addMetric("実収支", actual, hasActual, "actual");
+    addMetric("期待値", expectation, hasExpectation, "expectation");
+    addMetric("差", actual - expectation, hasActual, "actual");
+    card.appendChild(metrics);
+    return card;
+  };
 
+  const annualCard = addResultCard({
+    title: "",
+    actual: yearlyActual,
+    expectation: yearlyExpectation,
+    hasActual: yearlyActualEntries.length > 0,
+    hasExpectation: yearlyExpectationEntries.length > 0,
+    variant: "annual",
+  });
+  annualCard.prepend(header);
+  const cumulativeCard = addResultCard({
+    title: "",
+    actual: cumulativeActual,
+    expectation: cumulativeExpectation,
+    hasActual: actualEntries.length > 0,
+    hasExpectation: expectationEntries.length > 0,
+    variant: "cumulative",
+  });
+  const cumulativeHeader = document.createElement("header");
+  cumulativeHeader.className = "all-results-dashboard__header all-results-dashboard__header--cumulative";
+  const cumulativeHeading = document.createElement("h3");
+  cumulativeHeading.textContent = "累計";
+  cumulativeHeader.appendChild(cumulativeHeading);
+  cumulativeCard.prepend(cumulativeHeader);
+  dashboard.append(annualCard, cumulativeCard);
+  wrap.appendChild(dashboard);
+}
 
-  const goalTitle = document.createElement("p");
-  goalTitle.className = "machine-total-card__goal-label";
-    goalTitle.textContent = getGoalLabel(progress.index);
-  card.appendChild(goalTitle);
+function changeAllResultsYear(offset) {
+  const content = document.querySelector(".all-results-year-content");
+  if (!content || content.classList.contains("is-updating") || content.classList.contains("is-revealing")) return;
 
+  const currentYear = new Date().getFullYear();
+  const nextYear = Math.min(currentYear, allResultsYear + offset);
+  if (nextYear === allResultsYear) return;
 
-  const goal = document.createElement("div");
-  goal.className = "goal";
+  const applyYearChange = () => {
+    allResultsYear = nextYear;
+    renderMachineTotalCards();
+  };
 
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    applyYearChange();
+    return;
+  }
 
-  const bar = document.createElement("progress");
-  bar.value = progress.value;
-  bar.max = progress.max;
-  bar.classList.add(getGoalColorClass(progress.index));
-  goal.appendChild(bar);
+  document.querySelectorAll("[data-all-results-year-offset]").forEach((button) => {
+    button.disabled = true;
+  });
+  content.classList.add("is-updating");
 
+  window.setTimeout(() => {
+    applyYearChange();
+    const nextContent = document.querySelector(".all-results-year-content");
+    const yearButtons = document.querySelectorAll("[data-all-results-year-offset]");
+    yearButtons.forEach((button) => {
+      button.disabled = true;
+    });
+    nextContent?.classList.add("is-revealing");
 
-  const percent = document.createElement("p");
-  percent.textContent = `達成率：${(Math.floor(Math.min(100, progress.percent) * 10) / 10).toFixed(1)} %`;
-  goal.appendChild(percent);
-
-
-  card.appendChild(goal);
-
-
-  const reset = document.createElement("button");
-  reset.type = "button";
-  reset.className = "machine-reset-btn all-machine-reset-btn";
-  reset.dataset.action = "resetAllMachines";
-  reset.textContent = "全機種リセット";
-  card.appendChild(reset);
-
-
-  wrap.appendChild(card);
+    const finish = () => {
+      nextContent?.classList.remove("is-revealing");
+      yearButtons.forEach((button) => {
+        const buttonOffset = Number(button.dataset.allResultsYearOffset);
+        button.disabled = buttonOffset > 0 && allResultsYear >= currentYear;
+      });
+    };
+    nextContent?.addEventListener("animationend", finish, { once: true });
+    window.setTimeout(finish, 650);
+  }, 200);
 }
 
 
@@ -4254,7 +5097,7 @@ function updateView() {
 
 const noteEl = document.querySelector(".note");
 if (noteEl) {
-  noteEl.textContent = "※通常ボーダーは選択交換率、真ボーダーは持ち玉比率を加味、期待値は等価換算です";
+  noteEl.textContent = "※交換率別ボーダーは持ち玉比率30%想定、真ボーダーは実際の持ち玉比率を加味、期待値は等価換算です";
 }
   renderMachineTotalCards();
 }
@@ -4527,12 +5370,17 @@ function calc() {
   }
 
 
-  const cashInvestBalls = investK * 250;
-  const consumedBalls = cashInvestBalls + ownedBallsUsed + outputBallsUsedInput;
-  const totalOutputBallsUsed = outputBallsUsedInput;
-  const playSourceBalls = cashInvestBalls + ownedBallsUsed + totalOutputBallsUsed;
+  const consumedInputs = getConsumedPlayInputs(calcRows, {
+    investK,
+    ownedBalls: ownedBallsUsed,
+    outputBalls: outputBallsUsedInput,
+  });
+  const consumedBalls = consumedInputs.consumedBalls;
+  const effectiveOwnedBallsUsed = consumedInputs.ownedBalls;
+  const totalOutputBallsUsed = consumedInputs.outputBalls;
+  const playSourceBalls = consumedBalls;
   const ownedRatio = playSourceBalls > 0
-    ? Math.max(0, Math.min(1, (ownedBallsUsed + totalOutputBallsUsed) / playSourceBalls))
+    ? Math.max(0, Math.min(1, (effectiveOwnedBallsUsed + totalOutputBallsUsed) / playSourceBalls))
     : 0;
   const trueBorder = calcTrueBorder(ownedRatio);
 
@@ -4570,6 +5418,12 @@ function calc() {
     addSessionTotals(storeTotals, sessionTotals);
     saveTotalsForStoreMachine(selectedStore, selectedMachine.id, storeTotals);
   }
+  const actualYen = calcSessionActualYen(calcRows, {
+    investK,
+    ownedBalls: ownedBallsUsed,
+    outputBalls: outputBallsUsedInput,
+  });
+  addCalendarExpectationEntry(todayYen, actualYen);
 
   const borderVal = getCurrentBorder();
   const diffBorder = trueBorder ?? borderVal;
@@ -4586,6 +5440,7 @@ function calc() {
   hasStarted = false;
   updateStartButton();
   updateView();
+  refreshExpectationHistoryViews();
 
 
   confirmedInvestYen = 0;
@@ -4716,6 +5571,7 @@ function resetTodayLogState() {
   setOutputUseBalls(0);
   setDailyHandBalls(0);
   setDailyCashOnHand(0);
+  setDailyAtmWithdrawal(0);
   if (confirmedOwnedBalls > 0) addOwnedBalance(confirmedOwnedBalls);
   confirmedInvestYen = 0;
   confirmedOwnedBalls = 0;
@@ -5143,23 +5999,26 @@ function calcMidRotationRateB(tempEndBalls) {
   const investK = Number(playInputs.investK) || (confirmedInvestYen / 1000);
   const ownedBallsUsed = Number(playInputs.ownedBalls) || confirmedOwnedBalls;
   const outputBallsUsedInput = Number(playInputs.outputBalls) || confirmedOutputBalls;
-  const cashInvestBalls = investK * 250;
-  const totalOutputBallsUsed = outputBallsUsedInput;
-  const consumedBalls = cashInvestBalls + ownedBallsUsed + outputBallsUsedInput;
-  const handInvestBalls = ownedBallsUsed + totalOutputBallsUsed;
+  const consumedInputs = getConsumedPlayInputs(calcRows, {
+    investK,
+    ownedBalls: ownedBallsUsed,
+    outputBalls: outputBallsUsedInput,
+  }, tempEndBalls);
+  const consumedBalls = consumedInputs.consumedBalls;
+  const handInvestBalls = consumedInputs.ownedBalls + consumedInputs.outputBalls;
 
   if (consumedBalls <= 0) return null;
 
-  const playSourceBalls = cashInvestBalls + ownedBallsUsed + totalOutputBallsUsed;
+  const playSourceBalls = consumedBalls;
   const ownedRatio = playSourceBalls > 0
-    ? Math.max(0, Math.min(1, (ownedBallsUsed + totalOutputBallsUsed) / playSourceBalls))
+    ? Math.max(0, Math.min(1, handInvestBalls / playSourceBalls))
     : 0;
 
   return {
     spinCount,
     rotationRate: (spinCount / consumedBalls) * 250,
     trueBorder: calcTrueBorder(ownedRatio),
-    formulaText: formatMidCheckFormula({ spinCount, investK, handInvestBalls }),
+    formulaText: formatMidCheckFormula({ spinCount, investK: consumedInputs.investK, handInvestBalls }),
   };
 }
 
@@ -5293,6 +6152,7 @@ function init() {
   initClearableInputs();
   initNumberInputWheelGuard();
   initMachineSelect();
+  applyDisplayOptions({ rerenderTotals: false });
   checkDailyLogRollover();
   renderMachineInfo(false);
   updateHitOptionButtons();
@@ -5349,6 +6209,13 @@ function init() {
 
   $("resetBtn")?.addEventListener("click", resetSelectedMachineTotals);
   $("machineTotalCards")?.addEventListener("click", (e) => {
+    const yearButton = e.target.closest("[data-all-results-year-offset]");
+    if (yearButton) {
+      const offset = Number(yearButton.dataset.allResultsYearOffset);
+      changeAllResultsYear(offset);
+      return;
+    }
+
     const allReset = e.target.closest("[data-action='resetAllMachines']");
     if (allReset) {
       resetAllMachineTotals();
@@ -5362,6 +6229,34 @@ function init() {
   });
   $("totalTabAll")?.addEventListener("click", () => setTotalViewMode("all", true));
   $("totalTabSelected")?.addEventListener("click", () => setTotalViewMode("selected", false));
+  $("totalTabCalendar")?.addEventListener("click", () => setTotalViewMode("calendar", false));
+  $("displayOptionsOpen")?.addEventListener("click", openDisplayOptions);
+  $("displayOptionsClose")?.addEventListener("click", closeDisplayOptions);
+  $("displayOptionsOverlay")?.addEventListener("click", closeDisplayOptions);
+  $("displayOptionsModal")?.addEventListener("change", (event) => {
+    const input = event.target.closest("[data-display-option]");
+    if (!input) return;
+    saveDisplayOption(input.dataset.displayOption, input.checked);
+  });
+  $("calendarPrevMonth")?.addEventListener("click", () => changeCalendarMonth(-1));
+  $("calendarNextMonth")?.addEventListener("click", () => changeCalendarMonth(1));
+  $("calendarActualSave")?.addEventListener("click", saveCalendarActual);
+  $("calendarActualDelete")?.addEventListener("click", deleteCalendarActual);
+  $("calendarActualMinus")?.addEventListener("click", toggleCalendarActualMinus);
+  $("calendarActualInput")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") saveCalendarActual();
+  });
+  $("calendarDayEntries")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-calendar-entry-delete]");
+    if (!button) return;
+    deleteCalendarEntry(button.dataset.calendarEntryDelete, button.dataset.calendarEntryId || "");
+  });
+  $("calendarGrid")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-calendar-date]");
+    if (!button) return;
+    calendarSelectedDate = button.dataset.calendarDate;
+    renderCalendar();
+  });
 
 
   $("investYen")?.addEventListener("input", syncInvestInput);
@@ -5377,6 +6272,7 @@ function init() {
     $(id)?.addEventListener("change", queueSaveSession);
   });
   $("dailyCashSaveBtn")?.addEventListener("click", saveDailyCashInput);
+  $("atmWithdrawalSaveBtn")?.addEventListener("click", saveAtmWithdrawalInput);
   $("ownedBalanceSaveBtn")?.addEventListener("click", saveOwnedBalanceInput);
   $("appDialogInput")?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
@@ -5536,6 +6432,7 @@ function init() {
     if (e.key === "Escape") {
       closeMachinePicker();
       closeStorePicker();
+      closeDisplayOptions();
     }
   });
 
