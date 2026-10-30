@@ -1,7 +1,7 @@
 {
   "name": "ev-tracker",
-  "version": "2.0.1",
-  "iosBuildNumber": "91",
+  "version": "2.0.2",
+  "iosBuildNumber": "92",
   "private": true,
   "description": "期待値トラッカー",
   "scripts": {
